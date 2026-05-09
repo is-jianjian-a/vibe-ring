@@ -99,6 +99,36 @@ struct AgentSessionPresentationTests {
     }
 
     @Test
+    func completionReplyRecipientCoversEveryAgentTool() {
+        let expectedNames: [(AgentTool, String)] = [
+            (.claudeCode, "Claude"),
+            (.codex, "Codex"),
+            (.geminiCLI, "Gemini"),
+            (.openCode, "OpenCode"),
+            (.qoder, "Qoder"),
+            (.qwenCode, "Qwen Code"),
+            (.factory, "Factory"),
+            (.codebuddy, "CodeBuddy"),
+            (.cursor, "Cursor"),
+            (.kimiCLI, "Kimi"),
+        ]
+        #expect(expectedNames.map { $0.0.rawValue }.sorted() == AgentTool.allCases.map(\.rawValue).sorted())
+
+        for (tool, expectedName) in expectedNames {
+            let session = AgentSession(
+                id: "\(tool.rawValue)-session",
+                title: "\(expectedName) · worktree",
+                tool: tool,
+                phase: .completed,
+                summary: "Ready",
+                updatedAt: .now
+            )
+
+            #expect(session.completionReplyRecipientName == expectedName)
+        }
+    }
+
+    @Test
     func completedSessionBecomesV8StaleAfterFiveMinutes() {
         let referenceDate = Date(timeIntervalSince1970: 10_000)
         let session = AgentSession(

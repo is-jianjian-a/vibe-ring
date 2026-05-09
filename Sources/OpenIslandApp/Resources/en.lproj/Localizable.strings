@@ -221,7 +221,7 @@
 
 /* Island Panel - Completion */
 "completion.done" = "Done";
-"completion.replyPlaceholder" = "Reply to Claude…";
+"completion.replyPlaceholder" = "Reply to %@…";
 
 /* Window Titles */
 "window.settings" = "Open Island Settings";
