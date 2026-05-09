@@ -355,6 +355,7 @@ public struct ClaudeHookPayload: Equatable, Codable, Sendable {
     public var message: String?
     public var title: String?
     public var notificationType: String?
+    public var subtype: String?
     public var stopHookActive: Bool?
     public var lastAssistantMessage: String?
     public var error: String?
@@ -398,6 +399,7 @@ public struct ClaudeHookPayload: Equatable, Codable, Sendable {
         case message
         case title
         case notificationType = "notification_type"
+        case subtype
         case stopHookActive = "stop_hook_active"
         case lastAssistantMessage = "last_assistant_message"
         case error
@@ -431,6 +433,7 @@ public struct ClaudeHookPayload: Equatable, Codable, Sendable {
         message: String? = nil,
         title: String? = nil,
         notificationType: String? = nil,
+        subtype: String? = nil,
         stopHookActive: Bool? = nil,
         lastAssistantMessage: String? = nil,
         error: String? = nil,
@@ -462,6 +465,7 @@ public struct ClaudeHookPayload: Equatable, Codable, Sendable {
         self.message = message
         self.title = title
         self.notificationType = notificationType
+        self.subtype = subtype
         self.stopHookActive = stopHookActive
         self.lastAssistantMessage = lastAssistantMessage
         self.error = error
@@ -757,6 +761,12 @@ public extension ClaudeHookPayload {
         case .sessionEnd:
             return "\(agent) session ended in \(workspaceName)."
         }
+    }
+
+    var isIdleNotification: Bool {
+        let values = [notificationType, subtype]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        return values.contains("idle_prompt") || values.contains("away_summary")
     }
 
     var promptPreview: String? {

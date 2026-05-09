@@ -783,7 +783,7 @@ public final class BridgeServer: @unchecked Sendable {
 
             let currentPhase = localState.session(id: payload.sessionID)?.phase ?? .completed
             let notificationPhase: SessionPhase
-            if payload.notificationType == "idle_prompt" {
+            if payload.isIdleNotification {
                 notificationPhase = .completed
             } else {
                 // Notifications are informational — never escalate phase to running.
