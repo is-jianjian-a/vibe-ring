@@ -99,6 +99,38 @@ struct AgentSessionPresentationTests {
     }
 
     @Test
+    func completionReplyRecipientUsesSessionToolName() {
+        let codex = AgentSession(
+            id: "codex-session",
+            title: "Codex · worktree",
+            tool: .codex,
+            phase: .completed,
+            summary: "Ready",
+            updatedAt: .now
+        )
+        let claude = AgentSession(
+            id: "claude-session",
+            title: "Claude · worktree",
+            tool: .claudeCode,
+            phase: .completed,
+            summary: "Ready",
+            updatedAt: .now
+        )
+        let gemini = AgentSession(
+            id: "gemini-session",
+            title: "Gemini CLI · worktree",
+            tool: .geminiCLI,
+            phase: .completed,
+            summary: "Ready",
+            updatedAt: .now
+        )
+
+        #expect(codex.completionReplyRecipientName == "Codex")
+        #expect(claude.completionReplyRecipientName == "Claude")
+        #expect(gemini.completionReplyRecipientName == "Gemini")
+    }
+
+    @Test
     func completedSessionBecomesV8StaleAfterFiveMinutes() {
         let referenceDate = Date(timeIntervalSince1970: 10_000)
         let session = AgentSession(

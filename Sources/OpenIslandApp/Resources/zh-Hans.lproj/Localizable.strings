@@ -221,7 +221,7 @@
 
 /* Island Panel - Completion */
 "completion.done" = "完成";
-"completion.replyPlaceholder" = "回复 Claude…";
+"completion.replyPlaceholder" = "回复 %@…";
 
 /* Window Titles */
 "window.settings" = "Open Island 设置";

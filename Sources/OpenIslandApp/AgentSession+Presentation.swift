@@ -191,6 +191,19 @@ extension AgentSession {
         return "You: \(prompt)"
     }
 
+    var completionReplyRecipientName: String {
+        switch tool {
+        case .claudeCode:
+            return "Claude"
+        case .geminiCLI:
+            return "Gemini"
+        case .kimiCLI:
+            return "Kimi"
+        default:
+            return tool.displayName
+        }
+    }
+
     var notificationHeaderPromptLineText: String? {
         guard phase != .completed else {
             return nil

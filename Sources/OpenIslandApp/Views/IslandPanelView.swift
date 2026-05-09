@@ -1707,7 +1707,7 @@ private struct IslandSessionRow: View {
     private var completionReplyInput: some View {
         HStack(spacing: 8) {
             ReplyTextField(
-                placeholder: lang.t("completion.replyPlaceholder"),
+                placeholder: lang.t("completion.replyPlaceholder", session.completionReplyRecipientName),
                 text: $replyText,
                 onSubmit: { submitReply() }
             )
