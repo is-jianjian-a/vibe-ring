@@ -29,6 +29,10 @@ final class ProcessMonitoringCoordinator {
     @ObservationIgnored
     var onCodexAppRunningChanged: ((_ isRunning: Bool) -> Void)?
 
+    /// Fires when Hermes is detected as running / no longer running.
+    @ObservationIgnored
+    var onHermesRunningChanged: ((_ isRunning: Bool) -> Void)?
+
     @ObservationIgnored
     let activeAgentProcessDiscovery = ActiveAgentProcessDiscovery()
 
@@ -43,6 +47,12 @@ final class ProcessMonitoringCoordinator {
 
     @ObservationIgnored
     private var wasCodexAppRunning = false
+
+    @ObservationIgnored
+    private var wasHermesRunning = false
+
+    @ObservationIgnored
+    private var immediateReconciliationTask: Task<Void, Never>?
 
     private static let cursorStalenessTimeout: TimeInterval = 600  // 10 minutes
 
@@ -86,6 +96,36 @@ final class ProcessMonitoringCoordinator {
         }
     }
 
+    /// Trigger an immediate process scan + terminal reconciliation outside
+    /// the regular 2-second polling cycle.  Useful when a hook event signals
+    /// a new session — terminal attachment and jump-target resolution happen
+    /// right away instead of waiting for the next tick.
+    func triggerImmediateReconciliation() {
+        guard immediateReconciliationTask == nil else { return }
+
+        immediateReconciliationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let discovery = self.activeAgentProcessDiscovery
+            let probe = self.terminalSessionAttachmentProbe
+            let resolver = self.terminalJumpTargetResolver
+            let liveSessions = self.state.sessions.filter(\.isTrackedLiveSession)
+            let (snapshots, ghosttyAvail, terminalAvail, jumpTargets) = await Task.detached(priority: .userInitiated) {
+                let s = discovery.discover()
+                let g = probe.ghosttySnapshotAvailability()
+                let t = probe.terminalSnapshotAvailability()
+                let j = resolver.resolveJumpTargets(for: liveSessions, activeProcesses: s)
+                return (s, g, t, j)
+            }.value
+            self.reconcileSessionAttachments(
+                activeProcesses: snapshots,
+                ghosttyAvailability: ghosttyAvail,
+                terminalAvailability: terminalAvail,
+                preResolvedJumpTargets: jumpTargets
+            )
+            self.immediateReconciliationTask = nil
+        }
+    }
+
     // MARK: - Reconciliation
 
     func reconcileSessionAttachments(
@@ -125,6 +165,11 @@ final class ProcessMonitoringCoordinator {
         if isCodexAppRunning != wasCodexAppRunning {
             wasCodexAppRunning = isCodexAppRunning
             onCodexAppRunningChanged?(isCodexAppRunning)
+        }
+        let isHermesRunning = activeProcesses.contains { $0.tool == .hermes }
+        if isHermesRunning != wasHermesRunning {
+            wasHermesRunning = isHermesRunning
+            onHermesRunningChanged?(isHermesRunning)
         }
         let sessions = local.sessions.filter(\.isTrackedLiveSession)
         guard !sessions.isEmpty else {
@@ -384,6 +429,16 @@ final class ProcessMonitoringCoordinator {
         let hasKimiProcess = activeProcesses.contains { $0.tool == .kimiCLI }
         if hasKimiProcess {
             for session in sessions where session.tool == .kimiCLI && !session.isDemoSession {
+                aliveIDs.insert(session.id)
+            }
+        }
+
+        // Hermes sessions: Hermes is a web application — we cannot match
+        // individual session IDs from ps/lsof.  Keep Hermes sessions alive
+        // while any Hermes process is running.
+        let hasHermesProcess = activeProcesses.contains { $0.tool == .hermes }
+        if hasHermesProcess {
+            for session in sessions where session.tool == .hermes && !session.isDemoSession {
                 aliveIDs.insert(session.id)
             }
         }
@@ -1015,6 +1070,8 @@ final class ProcessMonitoringCoordinator {
             return "Cursor \(session.id.prefix(8))"
         case .kimiCLI:
             return "Kimi \(session.id.prefix(8))"
+        case .hermes:
+            return "Hermes \(session.id.prefix(8))"
         }
     }
 }

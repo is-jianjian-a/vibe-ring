@@ -67,6 +67,7 @@ final class AppModel {
     let discovery = SessionDiscoveryCoordinator()
     let monitoring = ProcessMonitoringCoordinator()
     let codexAppServer = CodexAppServerCoordinator()
+    let hermes = HermesCoordinator()
     let updateChecker = UpdateChecker()
 
     var notchStatus: NotchStatus {
@@ -165,6 +166,13 @@ final class AppModel {
             || hooks.kimiHooksInstalled
     }
     func refreshCodexHookStatus() { hooks.refreshCodexHookStatus() }
+
+    /// Force an immediate process scan + terminal reconciliation.
+    /// Intended for UI-driven refresh (e.g. a refresh button).
+    func refreshSessions() {
+        monitoring.triggerImmediateReconciliation()
+    }
+
     func refreshClaudeHookStatus() { hooks.refreshClaudeHookStatus() }
     func refreshOpenCodePluginStatus() { hooks.refreshOpenCodePluginStatus() }
     func refreshCursorHookStatus() { hooks.refreshCursorHookStatus() }
@@ -666,6 +674,16 @@ final class AppModel {
             self?.state.session(id: id) != nil
         }
 
+        hermes.onEvent = { [weak self] event in
+            self?.applyTrackedEvent(event, ingress: .bridge)
+        }
+        hermes.onStatusMessage = { [weak self] message in
+            self?.lastActionMessage = message
+        }
+        hermes.isSessionTracked = { [weak self] id in
+            self?.state.session(id: id) != nil
+        }
+
         monitoring.syntheticClaudeSessionPrefix = Self.syntheticClaudeSessionPrefix
         monitoring.stateAccessor = { [weak self] in self?.state ?? SessionState() }
         monitoring.stateUpdater = { [weak self] in self?.state = $0 }
@@ -685,6 +703,14 @@ final class AppModel {
                 self.codexAppServer.ensureConnected()
             } else {
                 self.codexAppServer.disconnect()
+            }
+        }
+        monitoring.onHermesRunningChanged = { [weak self] isRunning in
+            guard let self else { return }
+            if isRunning {
+                self.hermes.ensureConnected()
+            } else {
+                self.hermes.disconnect()
             }
         }
         refreshOverlayDisplayConfiguration()
@@ -1488,6 +1514,9 @@ final class AppModel {
         if ingress == .bridge {
             monitoring.markSessionAttached(for: event)
             monitoring.markSessionProcessAlive(for: event)
+            if case .sessionStarted = event {
+                monitoring.triggerImmediateReconciliation()
+            }
         }
         synchronizeSelection()
         discovery.refreshCodexRolloutTracking()

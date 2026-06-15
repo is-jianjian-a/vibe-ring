@@ -160,7 +160,7 @@ struct IslandPanelView: View {
     }
 
     private var openedHeaderButtonsWidth: CGFloat {
-        (Self.headerControlButtonSize * 3) + (Self.headerControlSpacing * 2)
+        (Self.headerControlButtonSize * 4) + (Self.headerControlSpacing * 3)
     }
 
     private var openedHeaderHorizontalPadding: CGFloat {
@@ -381,6 +381,14 @@ struct IslandPanelView: View {
                 tint: model.isSoundMuted ? .orange.opacity(0.92) : .white.opacity(0.62)
             ) {
                 model.toggleSoundMuted()
+            }
+
+            headerIconButton(
+                systemName: "arrow.clockwise",
+                tint: .white.opacity(0.62),
+                accessibilityLabel: "Refresh sessions"
+            ) {
+                model.refreshSessions()
             }
 
             headerIconButton(systemName: "gearshape.fill", tint: .white.opacity(0.62)) {
