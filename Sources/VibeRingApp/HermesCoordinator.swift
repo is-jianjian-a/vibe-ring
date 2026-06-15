@@ -2,12 +2,11 @@ import AppKit
 import Foundation
 import VibeRingCore
 
-/// Manages the lifecycle of the Hermes WebUI monitoring connection.
+/// Manages the lifecycle of Hermes agent monitoring.
 ///
-/// Polls the Hermes REST API (default `http://127.0.0.1:8787`) to discover
-/// active sessions, detect state changes, and surface pending approvals.
-/// Converts API responses into `AgentEvent`s that flow through the standard
-/// `SessionState` reducer.
+/// Reads active Hermes sessions directly from `~/.hermes/state.db` (SQLite)
+/// every 5 seconds.  No WebUI server required — works with Hermes CLI,
+/// gateway (Telegram/Discord/etc.), and any other Hermes session source.
 ///
 /// The coordinator is started/stopped by `ProcessMonitoringCoordinator` when
 /// a Hermes process is detected/lost, following the same pattern as
@@ -16,7 +15,7 @@ import VibeRingCore
 @MainActor
 final class HermesCoordinator {
     @ObservationIgnored
-    private var client: HermesAPIClient?
+    private var db: HermesStateDB?
 
     @ObservationIgnored
     private var pollingTask: Task<Void, Never>?
@@ -41,65 +40,55 @@ final class HermesCoordinator {
 
     // MARK: - Public API
 
-    /// Ensure a polling connection exists.  Called from the monitoring loop
-    /// when a Hermes process is detected.  Idempotent — does nothing if
-    /// already connected or a connection attempt is in progress.
     func ensureConnected() {
         guard !isConnected, pollingTask == nil else { return }
 
-        let client = HermesAPIClient()
-        self.client = client
+        let db = HermesStateDB()
+        self.db = db
         isConnected = true
         knownSessionIDs = []
 
-        onStatusMessage?("Connected to Hermes API.")
+        onStatusMessage?("Connected to Hermes state DB.")
 
         pollingTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 await self.pollHermes()
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(5))
             }
         }
     }
 
-    /// Disconnect and stop polling.  Called when the Hermes process is no
-    /// longer detected.
     func disconnect() {
         pollingTask?.cancel()
         pollingTask = nil
-        client = nil
+        db = nil
         isConnected = false
         knownSessionIDs = []
 
-        onStatusMessage?("Disconnected from Hermes API.")
+        onStatusMessage?("Disconnected from Hermes state DB.")
     }
 
     // MARK: - Polling
 
     private func pollHermes() async {
-        guard let client else { return }
+        guard let db else { return }
 
-        // First, verify Hermes is reachable.
-        guard let _ = try? await client.healthCheck() else {
+        let records: [HermesSessionRecord]
+        do {
+            records = try db.listActiveSessions()
+        } catch {
             return
         }
 
-        // Fetch the current session list.
-        guard let sessionsResponse = try? await client.listSessions() else {
-            return
-        }
-
-        let currentIDs = Set(sessionsResponse.sessions.map { $0.session_id })
+        let currentIDs = Set(records.map(\.id))
         let newIDs = currentIDs.subtracting(knownSessionIDs)
         let removedIDs = knownSessionIDs.subtracting(currentIDs)
 
-        // Handle new sessions.
-        for summary in sessionsResponse.sessions where newIDs.contains(summary.session_id) {
-            await handleNewSession(summary)
+        for record in records where newIDs.contains(record.id) {
+            handleNewSession(record)
         }
 
-        // Handle removed sessions.
         for id in removedIDs {
             onEvent?(.sessionCompleted(SessionCompleted(
                 sessionID: id,
@@ -110,95 +99,36 @@ final class HermesCoordinator {
         }
 
         knownSessionIDs = currentIDs
-
-        // Check for approval state changes on streaming sessions.
-        for summary in sessionsResponse.sessions
-        where summary.is_streaming == true && !newIDs.contains(summary.session_id) {
-            await checkApprovalState(sessionID: summary.session_id)
-        }
     }
 
-    private func handleNewSession(_ summary: HermesSessionSummary) async {
-        guard isSessionTracked?(summary.session_id) != true else { return }
-
-        // Fetch session detail for richer metadata.
-        var detail: HermesSessionDetail?
-        var lastUserMsg: String?
-        var lastAssistantMsg: String?
-
-        if let d = try? await client?.getSession(sessionID: summary.session_id) {
-            detail = d
-            if let messages = d.messages {
-                lastUserMsg = messages.last { $0.role == "user" }?.content
-                lastAssistantMsg = messages.last { $0.role == "assistant" }?.content
-            }
-        }
-
-        let isStreaming = detail?.is_streaming ?? summary.is_streaming ?? false
-        let phase: SessionPhase = isStreaming ? .running : .completed
-        let model = detail?.model ?? summary.model
+    private func handleNewSession(_ record: HermesSessionRecord) {
+        guard isSessionTracked?(record.id) != true else { return }
 
         let metadata = HermesSessionMetadata(
-            streamId: detail?.stream_id ?? summary.stream_id,
-            model: model,
-            workspace: detail?.workspace ?? summary.workspace,
-            isStreaming: isStreaming,
-            lastUserMessage: lastUserMsg,
-            lastAssistantMessage: lastAssistantMsg,
-            hasPendingApproval: detail?.pending_approval ?? false
+            model: record.model,
+            workspace: record.cwd,
+            isStreaming: true,  // active Hermes session ≈ streaming
+            hasPendingApproval: false
         )
 
-        let title = summary.title ?? detail?.title ?? "Hermes · \(model ?? "Agent")"
-
         onEvent?(.sessionStarted(SessionStarted(
-            sessionID: summary.session_id,
-            title: title,
+            sessionID: record.id,
+            title: record.sessionTitle,
             tool: .hermes,
             origin: .live,
-            initialPhase: phase,
-            summary: isStreaming ? "Working…" : "Completed.",
-            timestamp: .now,
+            initialPhase: .running,
+            summary: "Hermes · \(record.source)",
+            timestamp: record.startedAt,
             jumpTarget: JumpTarget(
                 terminalApp: "Hermes",
-                workspaceName: title,
-                paneTitle: title,
-                workingDirectory: summary.workspace,
-                terminalSessionID: summary.session_id
+                workspaceName: record.sessionTitle,
+                paneTitle: record.sessionTitle,
+                workingDirectory: record.cwd,
+                terminalSessionID: record.id
             ),
             hermesMetadata: metadata
         )))
 
-        // Emit additional events based on state.
-        if metadata.hasPendingApproval {
-            onEvent?(.permissionRequested(PermissionRequested(
-                sessionID: summary.session_id,
-                request: PermissionRequest(
-                    title: "Hermes Approval Required",
-                    summary: "Hermes is waiting for approval.",
-                    affectedPath: ""
-                ),
-                timestamp: .now
-            )))
-        }
-
-        onStatusMessage?("Discovered Hermes session: \(title)")
-    }
-
-    private func checkApprovalState(sessionID: String) async {
-        guard let client else { return }
-        guard let response = try? await client.pendingApproval(sessionID: sessionID) else { return }
-
-        if response.has_pending == true {
-            let summary = response.requests?.first?.summary ?? "Hermes is waiting for approval."
-            onEvent?(.permissionRequested(PermissionRequested(
-                sessionID: sessionID,
-                request: PermissionRequest(
-                    title: "Hermes Approval Required",
-                    summary: summary,
-                    affectedPath: response.requests?.first?.affected_path ?? ""
-                ),
-                timestamp: .now
-            )))
-        }
+        onStatusMessage?("Discovered Hermes session: \(record.sessionTitle)")
     }
 }

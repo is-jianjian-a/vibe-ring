@@ -1,163 +1,120 @@
 import Foundation
 
-// MARK: - API Response Models
+// MARK: - Session Record
 
-/// GET /api/health response.
-public struct HermesHealthResponse: Codable, Sendable {
-    public let active_streams: Int
-    public let active_runs: Int
-    public let runs: [HermesRunSummary]?
-    public let uptime_seconds: Double?
-    public let last_run_finished_at: String?
-}
-
-public struct HermesRunSummary: Codable, Sendable {
-    public let stream_id: String?
-    public let session_id: String?
-    public let phase: String?
-    public let started_at: String?
-    public let age_seconds: Double?
-}
-
-/// GET /api/sessions response.
-public struct HermesSessionsResponse: Codable, Sendable {
-    public let sessions: [HermesSessionSummary]
-    public let cli_count: Int?
-    public let active_profile: String?
-}
-
-public struct HermesSessionSummary: Codable, Sendable {
-    public let session_id: String
-    public let title: String?
+/// A session record read directly from Hermes' `~/.hermes/state.db`.
+public struct HermesSessionRecord: Sendable {
+    public let id: String
+    public let source: String           // "cli", "webui", "feishu", "gateway", etc.
     public let model: String?
-    public let workspace: String?
-    public let is_streaming: Bool?
-    public let stream_id: String?
-    public let created_at: String?
-    public let updated_at: String?
-}
-
-/// GET /api/session?session_id=X response (partial — only fields we use).
-public struct HermesSessionDetail: Codable, Sendable {
-    public let session_id: String
     public let title: String?
-    public let model: String?
-    public let workspace: String?
-    public let is_streaming: Bool?
-    public let stream_id: String?
-    public let created_at: String?
-    public let updated_at: String?
-    public let messages: [HermesMessage]?
-    public let pending_approval: Bool?
-}
+    public let startedAt: Date
+    public let endedAt: Date?
+    public let messageCount: Int
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cwd: String?
 
-public struct HermesMessage: Codable, Sendable {
-    public let role: String
-    public let content: String?
-}
+    public var isActive: Bool { endedAt == nil }
 
-/// GET /api/approval/pending?session_id=X response.
-public struct HermesApprovalPendingResponse: Codable, Sendable {
-    public let has_pending: Bool?
-    public let requests: [HermesApprovalRequest]?
-}
-
-public struct HermesApprovalRequest: Codable, Sendable {
-    public let tool_name: String?
-    public let affected_path: String?
-    public let summary: String?
-}
-
-// MARK: - Errors
-
-public enum HermesAPIError: Error, LocalizedError {
-    case notRunning
-    case requestFailed(statusCode: Int)
-    case decodeFailed(Error)
-
-    public var errorDescription: String? {
-        switch self {
-        case .notRunning:
-            "Hermes is not running"
-        case let .requestFailed(statusCode):
-            "Hermes API returned status \(statusCode)"
-        case let .decodeFailed(error):
-            "Failed to decode Hermes response: \(error.localizedDescription)"
-        }
+    public var sessionTitle: String {
+        if let title, !title.isEmpty { return title }
+        return "Hermes · \(model ?? "Agent")"
     }
 }
 
-// MARK: - API Client
+// MARK: - State DB Reader
 
-public final class HermesAPIClient: Sendable {
-    public let baseURL: URL
-    private let session: URLSession
+/// Reads Hermes session data directly from `~/.hermes/state.db`.
+///
+/// No HTTP server required — the SQLite database is always present when
+/// Hermes CLI is running.
+public final class HermesStateDB: Sendable {
+    private let dbPath: String
 
-    public init(baseURL: URL = URL(string: "http://127.0.0.1:8787")!) {
-        self.baseURL = baseURL
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 5
-        config.timeoutIntervalForResource = 10
-        self.session = URLSession(configuration: config)
+    public init(dbPath: String? = nil) {
+        let home = ProcessInfo.processInfo.environment["HOME"]
+            ?? NSHomeDirectory()
+        self.dbPath = dbPath ?? "\(home)/.hermes/state.db"
     }
 
-    private let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        d.keyDecodingStrategy = .convertFromSnakeCase
-        return d
-    }()
+    // MARK: - Public API
 
-    // MARK: - API Methods
-
-    public func healthCheck() async throws -> HermesHealthResponse {
-        let url = baseURL.appendingPathComponent("api").appendingPathComponent("health")
-        return try await fetch(url)
+    /// Returns all sessions whose `ended_at` is NULL (i.e. still active).
+    public func listActiveSessions() throws -> [HermesSessionRecord] {
+        return try query(
+            """
+            SELECT id, source, model, title, started_at, ended_at,
+                   message_count, input_tokens, output_tokens, cwd
+            FROM sessions
+            WHERE ended_at IS NULL
+            ORDER BY started_at DESC
+            """
+        )
     }
 
-    public func listSessions() async throws -> HermesSessionsResponse {
-        let url = baseURL.appendingPathComponent("api").appendingPathComponent("sessions")
-        return try await fetch(url)
-    }
-
-    public func getSession(sessionID: String) async throws -> HermesSessionDetail {
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("api").appendingPathComponent("session"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [
-            URLQueryItem(name: "session_id", value: sessionID),
-            URLQueryItem(name: "messages", value: "1"),
-            URLQueryItem(name: "msg_limit", value: "2"),
-        ]
-        return try await fetch(components.url!)
-    }
-
-    public func pendingApproval(sessionID: String) async throws -> HermesApprovalPendingResponse {
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("api").appendingPathComponent("approval").appendingPathComponent("pending"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "session_id", value: sessionID)]
-        return try await fetch(components.url!)
+    /// Returns a single session by ID, or nil if not found.
+    public func getSession(id: String) throws -> HermesSessionRecord? {
+        return try query(
+            """
+            SELECT id, source, model, title, started_at, ended_at,
+                   message_count, input_tokens, output_tokens, cwd
+            FROM sessions
+            WHERE id = ?
+            """,
+            arguments: [id]
+        ).first
     }
 
     // MARK: - Internal
 
-    private func fetch<T: Decodable>(_ url: URL) async throws -> T {
-        let (data, response) = try await session.data(from: url)
+    private func query(
+        _ sql: String,
+        arguments: [String] = []
+    ) throws -> [HermesSessionRecord] {
+        // Use /usr/bin/sqlite3 to avoid needing a Swift SQLite dependency.
+        var args = ["-readonly", "-json", "-noheader", dbPath, sql]
+        args.insert(contentsOf: arguments, at: args.count - 3)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw HermesAPIError.notRunning
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = args
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else { return [] }
+
+        let outputData = process.standardOutput.flatMap {
+            ($0 as? Pipe)?.fileHandleForReading.readDataToEndOfFile()
+        } ?? Data()
+
+        guard !outputData.isEmpty else { return [] }
+
+        // sqlite3 -json outputs one JSON array per row. Parse them.
+        guard let rawRows = try? JSONSerialization.jsonObject(with: outputData) as? [[String: Any]] else {
+            return []
         }
 
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw HermesAPIError.requestFailed(statusCode: httpResponse.statusCode)
-        }
-
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw HermesAPIError.decodeFailed(error)
+        return rawRows.compactMap { row in
+            guard let id = row["id"] as? String,
+                  let startedAtUnix = row["started_at"] as? TimeInterval else {
+                return nil
+            }
+            return HermesSessionRecord(
+                id: id,
+                source: row["source"] as? String ?? "",
+                model: row["model"] as? String,
+                title: row["title"] as? String,
+                startedAt: Date(timeIntervalSince1970: startedAtUnix),
+                endedAt: (row["ended_at"] as? TimeInterval).map(Date.init(timeIntervalSince1970:)),
+                messageCount: row["message_count"] as? Int ?? 0,
+                inputTokens: row["input_tokens"] as? Int ?? 0,
+                outputTokens: row["output_tokens"] as? Int ?? 0,
+                cwd: row["cwd"] as? String
+            )
         }
     }
 }
