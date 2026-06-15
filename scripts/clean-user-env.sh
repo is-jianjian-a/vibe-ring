@@ -2,7 +2,7 @@
 # clean-user-env.sh — Reset to a clean "new user" state for testing.
 # Usage: zsh scripts/clean-user-env.sh [--dry-run]
 #
-# This removes all Open Island (and legacy Vibe Island) artifacts from the
+# This removes all Vibe Ring (and legacy Vibe Island) artifacts from the
 # current user's environment, simulating a fresh install.
 
 set -euo pipefail
@@ -33,23 +33,23 @@ clean_glob() {
     done
 }
 
-echo "==> Quit Open Island if running"
+echo "==> Quit Vibe Ring if running"
 if ! $DRY_RUN; then
-    pkill -x OpenIslandApp 2>/dev/null || true
+    pkill -x VibeRingApp 2>/dev/null || true
     sleep 0.5
 fi
 
 uid="$(id -u)"
 
 echo ""
-echo "==> Cleaning Open Island artifacts"
+echo "==> Cleaning Vibe Ring artifacts"
 
 # --- Hook configurations ---
 echo "--- Hook configs ---"
 
 # Claude-style forks (.claude / .qoder / .qwen / .factory / .codebuddy / .gemini):
-# each has a settings.json that may contain Open Island hook entries, plus
-# sidecar manifests and backups. Strip OpenIsland references but preserve
+# each has a settings.json that may contain Vibe Ring hook entries, plus
+# sidecar manifests and backups. Strip VibeRing references but preserve
 # any user-owned hooks (including Vibe Island) so we don't trash setups
 # the test isn't supposed to touch.
 strip_claude_style() {
@@ -57,7 +57,7 @@ strip_claude_style() {
     local settings="$dir/settings.json"
     if [[ -f "$settings" ]]; then
         if $DRY_RUN; then
-            yellow "[dry-run] would strip OpenIsland hooks from: $settings"
+            yellow "[dry-run] would strip VibeRing hooks from: $settings"
         else
             python3 -c "
 import json, sys, pathlib
@@ -69,7 +69,7 @@ for event in list(hooks.keys()):
     original = hooks[event]
     if not isinstance(original, list): continue
     filtered = [h for h in original
-                if not any('OpenIslandHooks' in (c.get('command',''))
+                if not any('VibeRingHooks' in (c.get('command',''))
                            for c in h.get('hooks',[]))]
     if len(filtered) != len(original):
         changed = True
@@ -85,7 +85,7 @@ if changed:
     if not hooks and 'hooks' in d:
         del d['hooks']
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
-    print('stripped OpenIsland hooks/statusLine from', sys.argv[1])
+    print('stripped VibeRing hooks/statusLine from', sys.argv[1])
 " "$settings" 2>/dev/null && green "cleaned hooks in $settings" || true
         fi
     fi
@@ -98,11 +98,11 @@ for d in ~/.claude ~/.qoder ~/.qwen ~/.factory ~/.codebuddy ~/.gemini; do
     strip_claude_style "$d"
 done
 
-# Codex: remove Open Island entries from hooks.json
+# Codex: remove Vibe Ring entries from hooks.json
 codex_hooks=~/.codex/hooks.json
 if [[ -f "$codex_hooks" ]]; then
     if $DRY_RUN; then
-        yellow "[dry-run] would strip OpenIsland hooks from: $codex_hooks"
+        yellow "[dry-run] would strip VibeRing hooks from: $codex_hooks"
     else
         python3 -c "
 import json, sys, pathlib
@@ -115,7 +115,7 @@ for event in list(hooks.keys()):
     original = hooks[event]
     if not isinstance(original, list): continue
     filtered = [h for h in original
-                if not any('OpenIslandHooks' in c.get('command','')
+                if not any('VibeRingHooks' in c.get('command','')
                            for c in h.get('hooks',[]))]
     if len(filtered) != len(original):
         changed = True
@@ -125,7 +125,7 @@ for event in list(hooks.keys()):
             del hooks[event]
 if changed:
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
-    print('stripped OpenIsland hooks from', sys.argv[1])
+    print('stripped VibeRing hooks from', sys.argv[1])
 " "$codex_hooks" 2>/dev/null && green "cleaned hooks in $codex_hooks" || true
     fi
 fi
@@ -140,7 +140,7 @@ clean_glob ~/.codex/'hooks.json.backup.*'
 cursor_hooks=~/.cursor/hooks.json
 if [[ -f "$cursor_hooks" ]]; then
     if $DRY_RUN; then
-        yellow "[dry-run] would strip OpenIsland hooks from: $cursor_hooks"
+        yellow "[dry-run] would strip VibeRing hooks from: $cursor_hooks"
     else
         python3 -c "
 import json, sys, pathlib
@@ -152,7 +152,7 @@ for event in list(hooks.keys()):
     original = hooks[event]
     if not isinstance(original, list): continue
     filtered = [h for h in original
-                if 'OpenIslandHooks' not in h.get('command','')]
+                if 'VibeRingHooks' not in h.get('command','')]
     if len(filtered) != len(original):
         changed = True
         if filtered:
@@ -163,7 +163,7 @@ if changed:
     if not hooks and 'hooks' in d:
         del d['hooks']
     p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + '\n')
-    print('stripped OpenIsland hooks from', sys.argv[1])
+    print('stripped VibeRing hooks from', sys.argv[1])
 " "$cursor_hooks" 2>/dev/null && green "cleaned hooks in $cursor_hooks" || true
     fi
 fi
@@ -199,7 +199,7 @@ fi
 
 # --- Installed hooks binary ---
 echo "--- Hooks binary ---"
-clean_path ~/Library/Application\ Support/OpenIsland
+clean_path ~/Library/Application\ Support/VibeRing
 clean_path ~/Library/Application\ Support/VibeIsland
 
 # --- Status line scripts ---
@@ -213,8 +213,8 @@ clean_path ~/Library/Application\ Support/open-island
 
 # --- Temp / socket files ---
 echo "--- Temp files ---"
-clean_path "/tmp/open-island-${uid}.sock"
-clean_path /tmp/open-island-rl.json
+clean_path "/tmp/vibe-ring-${uid}.sock"
+clean_path /tmp/vibe-ring-rl.json
 clean_path /tmp/vibe-island-rl.json
 
 # --- Installed app ---
@@ -226,7 +226,7 @@ clean_path ~/Applications/Open\ Island\ Dev.app
 # --- UserDefaults ---
 echo "--- UserDefaults ---"
 # Find the bundle ID used by the app
-for bid in app.openisland.dev app.vibeisland.dev; do
+for bid in app.vibering.dev app.vibeisland.dev; do
     plist=~/Library/Preferences/${bid}.plist
     if [[ -e "$plist" ]]; then
         if $DRY_RUN; then
@@ -245,6 +245,6 @@ else
     green "Done! Environment is clean."
     echo ""
     echo "Next steps:"
-    echo "  1. Install Open Island.dmg from the latest release"
+    echo "  1. Install Vibe Ring.dmg from the latest release"
     echo "  2. Launch the app — you are now a fresh user"
 fi

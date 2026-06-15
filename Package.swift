@@ -3,27 +3,27 @@
 import PackageDescription
 
 let package = Package(
-    name: "OpenIsland",
+    name: "VibeRing",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v14),
     ],
     products: [
         .library(
-            name: "OpenIslandCore",
-            targets: ["OpenIslandCore"]
+            name: "VibeRingCore",
+            targets: ["VibeRingCore"]
         ),
         .executable(
-            name: "OpenIslandHooks",
-            targets: ["OpenIslandHooks"]
+            name: "VibeRingHooks",
+            targets: ["VibeRingHooks"]
         ),
         .executable(
-            name: "OpenIslandSetup",
-            targets: ["OpenIslandSetup"]
+            name: "VibeRingSetup",
+            targets: ["VibeRingSetup"]
         ),
         .executable(
-            name: "OpenIslandApp",
-            targets: ["OpenIslandApp"]
+            name: "VibeRingApp",
+            targets: ["VibeRingApp"]
         ),
     ],
     dependencies: [
@@ -32,20 +32,20 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "OpenIslandCore"
+            name: "VibeRingCore"
         ),
         .executableTarget(
-            name: "OpenIslandHooks",
-            dependencies: ["OpenIslandCore"]
+            name: "VibeRingHooks",
+            dependencies: ["VibeRingCore"]
         ),
         .executableTarget(
-            name: "OpenIslandSetup",
-            dependencies: ["OpenIslandCore"]
+            name: "VibeRingSetup",
+            dependencies: ["VibeRingCore"]
         ),
         .executableTarget(
-            name: "OpenIslandApp",
+            name: "VibeRingApp",
             dependencies: [
-                "OpenIslandCore",
+                "VibeRingCore",
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
@@ -54,12 +54,12 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "OpenIslandCoreTests",
-            dependencies: ["OpenIslandCore"]
+            name: "VibeRingCoreTests",
+            dependencies: ["VibeRingCore"]
         ),
         .testTarget(
-            name: "OpenIslandAppTests",
-            dependencies: ["OpenIslandApp", "OpenIslandCore"]
+            name: "VibeRingAppTests",
+            dependencies: ["VibeRingApp", "VibeRingCore"]
         ),
     ]
 )

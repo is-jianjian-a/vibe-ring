@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Replay bridge events into a running Open Island dev app.
+Replay bridge events into a running Vibe Ring dev app.
 
 This is a manual UI verification helper.  It sends realistic bridge commands
 over the same Unix socket used by hook clients.  Permission/question events keep
@@ -27,10 +27,10 @@ DEFAULT_HOLD_TIMEOUT = 0.0
 
 
 def default_socket_path() -> str:
-    path = os.environ.get("OPEN_ISLAND_SOCKET_PATH") or os.environ.get("VIBE_ISLAND_SOCKET_PATH")
+    path = os.environ.get("VIBE_RING_SOCKET_PATH") or os.environ.get("VIBE_ISLAND_SOCKET_PATH")
     if path:
         return path
-    return str(Path.home() / "Library/Application Support/OpenIsland/bridge.sock")
+    return str(Path.home() / "Library/Application Support/VibeRing/bridge.sock")
 
 
 def repo_root() -> Path:
@@ -418,7 +418,7 @@ def hold_interaction(
     with connect_bridge(socket_path) as sock:
         sock.sendall(line.encode("utf-8") + b"\n")
         print(f"  sent {label}; keeping hook connected until UI resolution")
-        print("  answer the card in Open Island, or press Ctrl-C to cancel")
+        print("  answer the card in Vibe Ring, or press Ctrl-C to cancel")
         return recv_response(sock, timeout)
 
 
@@ -464,7 +464,7 @@ def replay_one(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Replay Open Island bridge scenarios into the running dev app."
+        description="Replay Vibe Ring bridge scenarios into the running dev app."
     )
     parser.add_argument(
         "scenario",
@@ -474,7 +474,7 @@ def main() -> int:
     parser.add_argument(
         "--socket",
         default=default_socket_path(),
-        help="Bridge socket path. Defaults to OPEN_ISLAND_SOCKET_PATH or the stable OpenIsland app-support socket.",
+        help="Bridge socket path. Defaults to VIBE_RING_SOCKET_PATH or the stable VibeRing app-support socket.",
     )
     parser.add_argument(
         "--cwd",
@@ -541,7 +541,7 @@ def main() -> int:
     if args.dry_run:
         print("Dry run complete.")
     else:
-        print("Replay complete. Inspect the Open Island overlay.")
+        print("Replay complete. Inspect the Vibe Ring overlay.")
     return 0
 
 

@@ -64,7 +64,7 @@ See [docs/worktree-workflow.md](/Users/wangruobing/Personal/open-island/docs/wor
 
 - Keep product scope in `docs/product.md`. Do not duplicate the supported agent, terminal, or IDE matrix here.
 - Do not broaden supported tools, runtimes, platforms, or environments unless the user explicitly asks.
-- Keep hook behavior aligned with `docs/hooks.md` and the implementation in `Sources/OpenIslandCore`.
+- Keep hook behavior aligned with `docs/hooks.md` and the implementation in `Sources/VibeRingCore`.
 
 ## Integration Guardrails
 
@@ -76,15 +76,15 @@ See [docs/worktree-workflow.md](/Users/wangruobing/Personal/open-island/docs/wor
 
 ## App Targets And Naming
 
-- Treat the repository executable product `OpenIslandApp` as the canonical OSS app runtime.
-- Treat `swift run OpenIslandApp` and the Xcode app target as the source-of-truth way to run the current branch's app code.
-- Treat `~/Applications/Open Island Dev.app` as a local development bundle wrapper around the repo-built `OpenIslandApp`, not as a separate product line.
-- Use `Open Island Dev.app` for manual OSS app verification when bundle semantics, LaunchServices, or installed-hook behavior matter.
-- When the user asks to launch or restart `Open Island Dev.app`, refresh the bundle from the current repo first with `zsh scripts/launch-dev-app.sh` instead of only running `open -na`. Opening the bundle alone can relaunch a stale binary.
+- Treat the repository executable product `VibeRingApp` as the canonical OSS app runtime.
+- Treat `swift run VibeRingApp` and the Xcode app target as the source-of-truth way to run the current branch's app code.
+- Treat `~/Applications/Vibe Ring Dev.app` as a local development bundle wrapper around the repo-built `VibeRingApp`, not as a separate product line.
+- Use `Vibe Ring Dev.app` for manual OSS app verification when bundle semantics, LaunchServices, or installed-hook behavior matter.
+- When the user asks to launch or restart `Vibe Ring Dev.app`, refresh the bundle from the current repo first with `zsh scripts/launch-dev-app.sh` instead of only running `open -na`. Opening the bundle alone can relaunch a stale binary.
 - For work that touches Accessibility, Automation, precision jump, or other macOS TCC-sensitive behavior, run `zsh scripts/setup-dev-signing.sh` once before repeated manual verification so the dev bundle keeps a stable local signing identity.
 - Use `scripts/harness.sh smoke` or `scripts/smoke-dev-app.sh` only for deterministic harness runs; those commands intentionally launch the repo executable directly rather than the installed dev bundle.
-- Treat any in-app label such as `Open Island OSS` as UI copy only, not as evidence of a third app target.
-- Build, debug, and verify OSS changes against `OpenIslandApp`. Treat `/Applications/Vibe Island.app` and `https://vibeisland.app/` as reference baselines only when comparison is explicitly needed.
+- Treat any in-app label such as `Vibe Ring OSS` as UI copy only, not as evidence of a third app target.
+- Build, debug, and verify OSS changes against `VibeRingApp`. Treat `/Applications/Vibe Island.app` and `https://vibeisland.app/` as reference baselines only when comparison is explicitly needed.
 
 ## Verification
 

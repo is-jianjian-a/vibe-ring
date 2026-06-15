@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-    echo "Open Island smoke runs only on macOS." >&2
+    echo "Vibe Ring smoke runs only on macOS." >&2
     exit 1
 fi
 
@@ -11,20 +11,20 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
-artifact_dir="${OPEN_ISLAND_HARNESS_ARTIFACT_DIR:-$repo_root/output/harness/smoke-$timestamp}"
+artifact_dir="${VIBE_RING_HARNESS_ARTIFACT_DIR:-$repo_root/output/harness/smoke-$timestamp}"
 
-export OPEN_ISLAND_HARNESS_SCENARIO="${OPEN_ISLAND_HARNESS_SCENARIO:-approvalCard}"
-export OPEN_ISLAND_HARNESS_PRESENT_OVERLAY="${OPEN_ISLAND_HARNESS_PRESENT_OVERLAY:-1}"
-export OPEN_ISLAND_HARNESS_START_BRIDGE="${OPEN_ISLAND_HARNESS_START_BRIDGE:-0}"
-export OPEN_ISLAND_HARNESS_BOOT_ANIMATION="${OPEN_ISLAND_HARNESS_BOOT_ANIMATION:-0}"
-export OPEN_ISLAND_HARNESS_CAPTURE_DELAY_SECONDS="${OPEN_ISLAND_HARNESS_CAPTURE_DELAY_SECONDS:-1}"
-export OPEN_ISLAND_HARNESS_AUTO_EXIT_SECONDS="${OPEN_ISLAND_HARNESS_AUTO_EXIT_SECONDS:-2}"
-export OPEN_ISLAND_HARNESS_ARTIFACT_DIR="$artifact_dir"
+export VIBE_RING_HARNESS_SCENARIO="${VIBE_RING_HARNESS_SCENARIO:-approvalCard}"
+export VIBE_RING_HARNESS_PRESENT_OVERLAY="${VIBE_RING_HARNESS_PRESENT_OVERLAY:-1}"
+export VIBE_RING_HARNESS_START_BRIDGE="${VIBE_RING_HARNESS_START_BRIDGE:-0}"
+export VIBE_RING_HARNESS_BOOT_ANIMATION="${VIBE_RING_HARNESS_BOOT_ANIMATION:-0}"
+export VIBE_RING_HARNESS_CAPTURE_DELAY_SECONDS="${VIBE_RING_HARNESS_CAPTURE_DELAY_SECONDS:-1}"
+export VIBE_RING_HARNESS_AUTO_EXIT_SECONDS="${VIBE_RING_HARNESS_AUTO_EXIT_SECONDS:-2}"
+export VIBE_RING_HARNESS_ARTIFACT_DIR="$artifact_dir"
 
 mkdir -p "$artifact_dir"
 
-echo "Launching OpenIslandApp smoke scenario '${OPEN_ISLAND_HARNESS_SCENARIO}' for ${OPEN_ISLAND_HARNESS_AUTO_EXIT_SECONDS}s"
-swift run OpenIslandApp
+echo "Launching VibeRingApp smoke scenario '${VIBE_RING_HARNESS_SCENARIO}' for ${VIBE_RING_HARNESS_AUTO_EXIT_SECONDS}s"
+swift run VibeRingApp
 
 report_path="$artifact_dir/report.json"
 if [[ ! -f "$report_path" ]]; then
@@ -55,4 +55,4 @@ subprocess.run(
 PY
 
 echo "Artifacts written to $artifact_dir"
-echo "OpenIslandApp smoke passed"
+echo "VibeRingApp smoke passed"

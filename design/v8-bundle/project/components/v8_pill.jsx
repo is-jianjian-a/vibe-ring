@@ -350,7 +350,7 @@ function NotifBody({ kind, onClose, embed=false }){
       code:'<agent prompt body · injected by PreToolUse hook>',
       sub:'open-island · refactor/claude-kernel-pid-monitor',
       // TODO[engineering]: use the agent's actual options. PermissionRequest in
-      // Sources/OpenIslandCore/AgentSession.swift carries primaryActionTitle /
+      // Sources/VibeRingCore/AgentSession.swift carries primaryActionTitle /
       // secondaryActionTitle (default "Allow"/"Deny") and may include
       // suggestedUpdates for "always allow" rules.
       acts:[{k:'deny',l:'Option B',cls:'danger'},{k:'ok',l:'Option A',cls:'primary'}],

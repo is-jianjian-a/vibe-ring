@@ -1,6 +1,6 @@
 # Hook System
 
-OpenIsland receives hook events from AI agents (Codex / Claude Code / Gemini CLI) via the `OpenIslandHooks` CLI. The CLI forwards payloads to the app over a Unix socket and, when necessary, writes a directive back to stdout so the agent can act on it (e.g. block a tool call).
+VibeRing receives hook events from AI agents (Codex / Claude Code / Gemini CLI) via the `VibeRingHooks` CLI. The CLI forwards payloads to the app over a Unix socket and, when necessary, writes a directive back to stdout so the agent can act on it (e.g. block a tool call).
 
 ## Architecture
 
@@ -8,13 +8,13 @@ OpenIsland receives hook events from AI agents (Codex / Claude Code / Gemini CLI
 Agent (Codex / Claude Code / Gemini CLI)
   │  stdin: JSON payload
   ▼
-OpenIslandHooks CLI  (--source codex | --source claude | --source gemini)
+VibeRingHooks CLI  (--source codex | --source claude | --source gemini)
   │  Unix socket
   ▼
 BridgeServer → AppModel → UI
   │  BridgeResponse
   ▼
-OpenIslandHooks CLI
+VibeRingHooks CLI
   │  stdout: JSON directive (only when a response is needed)
   ▼
 Agent
@@ -24,20 +24,20 @@ Agent
 
 ## Skip Hooks For Delegated Control
 
-Set `OPEN_ISLAND_SKIP_HOOKS=1` on a child agent process when another local controller intentionally owns permission handling for that run. The hook CLI exits immediately without reading or forwarding the payload, so the agent continues without Open Island UI intervention.
+Set `VIBE_RING_SKIP_HOOKS=1` on a child agent process when another local controller intentionally owns permission handling for that run. The hook CLI exits immediately without reading or forwarding the payload, so the agent continues without Vibe Ring UI intervention.
 
 `VIBE_ISLAND_SKIP=1` is also recognized as a legacy compatibility alias.
 
-This is meant for per-process launches. Do not set it globally unless you want Open Island hooks disabled for every agent started from that environment.
+This is meant for per-process launches. Do not set it globally unless you want Vibe Ring hooks disabled for every agent started from that environment.
 
-**Entry point**: [`Sources/OpenIslandHooks/main.swift`](../Sources/OpenIslandHooks/main.swift)
+**Entry point**: [`Sources/VibeRingHooks/main.swift`](../Sources/VibeRingHooks/main.swift)
 
 ---
 
 ## Codex Hooks (`--source codex`)
 
 **Payload type**: `CodexHookPayload`  
-**Source**: [`Sources/OpenIslandCore/CodexHooks.swift`](../Sources/OpenIslandCore/CodexHooks.swift)
+**Source**: [`Sources/VibeRingCore/CodexHooks.swift`](../Sources/VibeRingCore/CodexHooks.swift)
 
 ### Events
 
@@ -52,11 +52,11 @@ This is meant for per-process launches. Do not set it globally unless you want O
 
 ### Default managed installation
 
-The managed Codex hook installer (`CodexHookInstaller`) installs `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, and `Stop` by default. This keeps the lifecycle hooks low-noise while still allowing OpenIsland to broker Codex's first-class approval requests. Per-command `PreToolUse` / `PostToolUse` hooks remain opt-in because they can add terminal log noise.
+The managed Codex hook installer (`CodexHookInstaller`) installs `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, and `Stop` by default. This keeps the lifecycle hooks low-noise while still allowing VibeRing to broker Codex's first-class approval requests. Per-command `PreToolUse` / `PostToolUse` hooks remain opt-in because they can add terminal log noise.
 
 The installer chooses the Codex hook feature flag that the local Codex CLI advertises. Newer Codex builds use `[features].hooks = true`; older builds use the legacy `[features].codex_hooks = true`. Status checks recognize both keys, and managed installs migrate between them when the local Codex version changes.
 
-After hooks are installed or changed, Codex may require a manual trust review before running them. Open `/hooks` inside Codex CLI and approve the expected Open Island hook entries. This approval gate belongs to Codex and is not bypassed by Open Island.
+After hooks are installed or changed, Codex may require a manual trust review before running them. Open `/hooks` inside Codex CLI and approve the expected Vibe Ring hook entries. This approval gate belongs to Codex and is not bypassed by Vibe Ring.
 
 The `CodexHookPayload` model and `BridgeServer` can parse richer events (`PreToolUse`, `PostToolUse`) when they are present in the hook payload, and will surface them in the UI if received. However, these per-tool lifecycle events are **not** installed by the managed installer and must be configured manually if desired.
 
@@ -92,7 +92,7 @@ The `CodexHookPayload` model and `BridgeServer` can parse richer events (`PreToo
 The app can block a command by writing this to stdout:
 
 ```json
-{"decision": "block", "reason": "Blocked by Open Island"}
+{"decision": "block", "reason": "Blocked by Vibe Ring"}
 ```
 
 #### `PermissionRequest`
@@ -135,7 +135,7 @@ All other Codex events require no stdout response.
 ## Claude Code Hooks (`--source claude`)
 
 **Payload type**: `ClaudeHookPayload`  
-**Source**: [`Sources/OpenIslandCore/ClaudeHooks.swift`](../Sources/OpenIslandCore/ClaudeHooks.swift)
+**Source**: [`Sources/VibeRingCore/ClaudeHooks.swift`](../Sources/VibeRingCore/ClaudeHooks.swift)
 
 ### Events
 
@@ -257,11 +257,11 @@ Setting `interrupt: true` terminates the current agent turn immediately.
 ## Gemini CLI Hooks (`--source gemini`)
 
 **Payload type**: `GeminiHookPayload`  
-**Source**: [`Sources/OpenIslandCore/GeminiHooks.swift`](../Sources/OpenIslandCore/GeminiHooks.swift)
+**Source**: [`Sources/VibeRingCore/GeminiHooks.swift`](../Sources/VibeRingCore/GeminiHooks.swift)
 
 ### Events
 
-| `hook_event_name` | When it fires | Current OpenIsland behavior |
+| `hook_event_name` | When it fires | Current VibeRing behavior |
 |---|---|---|
 | `SessionStart` | Session starts or resumes | Creates or restores the Gemini session, title, jump target, and transcript metadata |
 | `BeforeAgent` | Gemini starts handling a prompt / turn | Marks the session running, updates prompt text, refreshes terminal metadata |
@@ -293,7 +293,7 @@ Setting `interrupt: true` terminates the current agent turn immediately.
 
 ### Current feature coverage
 
-- Session lifecycle ingestion for Gemini CLI via `OpenIslandHooks --source gemini`
+- Session lifecycle ingestion for Gemini CLI via `VibeRingHooks --source gemini`
 - Session list and island visibility updates from Gemini hook events
 - Prompt / response metadata capture for completion cards and session details
 - Terminal jump metadata enrichment for Terminal.app, iTerm2, Ghostty, and other supported terminals
@@ -301,8 +301,8 @@ Setting `interrupt: true` terminates the current agent turn immediately.
 
 ### Current limitations
 
-- Gemini hooks are currently treated as fire-and-forget. OpenIsland does not send Gemini-specific approval or modification directives back to stdout.
-- Gemini hook payloads sometimes include a duplicated copy of the final response body, often with whitespace-only differences. OpenIsland applies a best-effort compatibility pass before rendering completion content, but the result is not guaranteed to be perfect for every response shape.
+- Gemini hooks are currently treated as fire-and-forget. VibeRing does not send Gemini-specific approval or modification directives back to stdout.
+- Gemini hook payloads sometimes include a duplicated copy of the final response body, often with whitespace-only differences. VibeRing applies a best-effort compatibility pass before rendering completion content, but the result is not guaranteed to be perfect for every response shape.
 - Gemini support is currently limited to the hook events and UI/session behaviors listed above. It does not yet match the richer permission / interaction flows available for Claude Code or OpenCode.
 
 ---
@@ -340,9 +340,9 @@ For iTerm, Terminal, and Ghostty the process additionally runs an AppleScript qu
 
 | File | Responsibility |
 |---|---|
-| [`Sources/OpenIslandHooks/main.swift`](../Sources/OpenIslandHooks/main.swift) | Hook CLI entry point — routes to Codex, Claude, or Gemini path |
-| [`Sources/OpenIslandCore/CodexHooks.swift`](../Sources/OpenIslandCore/CodexHooks.swift) | Codex payload model, output encoder, terminal detection |
-| [`Sources/OpenIslandCore/ClaudeHooks.swift`](../Sources/OpenIslandCore/ClaudeHooks.swift) | Claude Code payload model, directive types, output encoder |
-| [`Sources/OpenIslandCore/GeminiHooks.swift`](../Sources/OpenIslandCore/GeminiHooks.swift) | Gemini CLI payload model, terminal detection, metadata helpers |
-| [`Sources/OpenIslandCore/BridgeServer.swift`](../Sources/OpenIslandCore/BridgeServer.swift) | Unix socket server — handles incoming hook payloads |
-| [`Sources/OpenIslandCore/BridgeTransport.swift`](../Sources/OpenIslandCore/BridgeTransport.swift) | Protocol codec and envelope types |
+| [`Sources/VibeRingHooks/main.swift`](../Sources/VibeRingHooks/main.swift) | Hook CLI entry point — routes to Codex, Claude, or Gemini path |
+| [`Sources/VibeRingCore/CodexHooks.swift`](../Sources/VibeRingCore/CodexHooks.swift) | Codex payload model, output encoder, terminal detection |
+| [`Sources/VibeRingCore/ClaudeHooks.swift`](../Sources/VibeRingCore/ClaudeHooks.swift) | Claude Code payload model, directive types, output encoder |
+| [`Sources/VibeRingCore/GeminiHooks.swift`](../Sources/VibeRingCore/GeminiHooks.swift) | Gemini CLI payload model, terminal detection, metadata helpers |
+| [`Sources/VibeRingCore/BridgeServer.swift`](../Sources/VibeRingCore/BridgeServer.swift) | Unix socket server — handles incoming hook payloads |
+| [`Sources/VibeRingCore/BridgeTransport.swift`](../Sources/VibeRingCore/BridgeTransport.swift) | Protocol codec and envelope types |

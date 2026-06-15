@@ -2,7 +2,7 @@
 // Real product surfaces: pill (notch + panel + notif). Control Center is a separate window
 // outside the design scope and is intentionally not modeled here.
 //
-// Engineering source-of-truth (Sources/OpenIslandCore/AgentSession.swift):
+// Engineering source-of-truth (Sources/VibeRingCore/AgentSession.swift):
 //   - AgentTool enum (10 cases) drives `AGENTS` below.
 //   - SessionPhase enum (running / waitingForApproval / waitingForAnswer / completed)
 //     drives the `state` strings used by NotchRow and Row. There is no `idle` phase
@@ -54,7 +54,7 @@ const TERMS = [
 ];
 
 // ---------- Phase taxonomy — engineering-aligned ----------
-// Mirrors Sources/OpenIslandCore/AgentSession.swift `SessionPhase` plus the
+// Mirrors Sources/VibeRingCore/AgentSession.swift `SessionPhase` plus the
 // pill-only `idle` value (which is *not* a phase in the reducer — it's how the
 // notch represents "no visible session" or a session with no live activity).
 //
