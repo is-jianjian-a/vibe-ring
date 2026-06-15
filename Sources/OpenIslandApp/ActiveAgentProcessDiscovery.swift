@@ -185,6 +185,23 @@ struct ActiveAgentProcessDiscovery {
                 ))
                 continue
             }
+
+            if isHermesProcess(command: process.command) {
+                let claimKey = "hermes:\(process.pid)"
+                guard claimedKeys.insert(claimKey).inserted else {
+                    continue
+                }
+
+                let lsofOutput = lsofOutput(pid: process.pid)
+                snapshots.append(ProcessSnapshot(
+                    tool: .hermes,
+                    sessionID: nil,
+                    workingDirectory: lsofOutput.flatMap(workingDirectory(from:)),
+                    terminalTTY: process.terminalTTY,
+                    terminalApp: terminalApp(for: process, processesByPID: processesByPID)
+                ))
+                continue
+            }
         }
 
         return snapshots
@@ -673,6 +690,19 @@ struct ActiveAgentProcessDiscovery {
         }
 
         return firstToken == "kimi" || firstToken.hasSuffix("/kimi")
+    }
+
+    /// Returns `true` when the given `ps` command string belongs to a Hermes
+    /// (WebUI or Agent) process.  Matches Python processes whose command line
+    /// references Hermes (e.g. `python3 server.py`, `python bootstrap.py`).
+    private func isHermesProcess(command: String) -> Bool {
+        let lowered = command.lowercased()
+        return lowered.contains("hermes")
+            && (lowered.contains("server.py")
+                || lowered.contains("bootstrap")
+                || lowered.contains("mcp_server")
+                || lowered.contains("ctl.sh"))
+            && !lowered.contains("hermes-mcp")  // exclude unrelated tools
     }
 
     /// Returns `true` when the given `ps` command string belongs to a Claude Code process.

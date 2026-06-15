@@ -11,6 +11,7 @@ public enum AgentTool: String, CaseIterable, Codable, Sendable {
     case codebuddy
     case cursor
     case kimiCLI
+    case hermes
 
     public var displayName: String {
         switch self {
@@ -34,6 +35,8 @@ public enum AgentTool: String, CaseIterable, Codable, Sendable {
             "Cursor"
         case .kimiCLI:
             "Kimi CLI"
+        case .hermes:
+            "Hermes"
         }
     }
 
@@ -59,6 +62,8 @@ public enum AgentTool: String, CaseIterable, Codable, Sendable {
             "CURSOR"
         case .kimiCLI:
             "KIMI"
+        case .hermes:
+            "HERMES"
         }
     }
 
@@ -87,6 +92,7 @@ public enum AgentTool: String, CaseIterable, Codable, Sendable {
         case .factory:    "#6e9fff"
         case .codebuddy:  "#fca5a5"
         case .kimiCLI:    "#fde047"
+        case .hermes:     "#7C3AED"
         }
     }
 }
@@ -373,6 +379,7 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
     public var geminiMetadata: GeminiSessionMetadata?
     public var openCodeMetadata: OpenCodeSessionMetadata?
     public var cursorMetadata: CursorSessionMetadata?
+    public var hermesMetadata: HermesSessionMetadata?
 
     /// Whether this session originates from a remote (SSH) connection.
     public var isRemote: Bool = false
@@ -418,7 +425,8 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
         claudeMetadata: ClaudeSessionMetadata? = nil,
         geminiMetadata: GeminiSessionMetadata? = nil,
         openCodeMetadata: OpenCodeSessionMetadata? = nil,
-        cursorMetadata: CursorSessionMetadata? = nil
+        cursorMetadata: CursorSessionMetadata? = nil,
+        hermesMetadata: HermesSessionMetadata? = nil
     ) {
         self.id = id
         self.title = title
@@ -437,6 +445,7 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
         self.geminiMetadata = geminiMetadata
         self.openCodeMetadata = openCodeMetadata
         self.cursorMetadata = cursorMetadata
+        self.hermesMetadata = hermesMetadata
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -457,6 +466,7 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
         case geminiMetadata
         case openCodeMetadata
         case cursorMetadata
+        case hermesMetadata
     }
 
     public init(from decoder: any Decoder) throws {
@@ -478,6 +488,7 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
         geminiMetadata = try container.decodeIfPresent(GeminiSessionMetadata.self, forKey: .geminiMetadata)
         openCodeMetadata = try container.decodeIfPresent(OpenCodeSessionMetadata.self, forKey: .openCodeMetadata)
         cursorMetadata = try container.decodeIfPresent(CursorSessionMetadata.self, forKey: .cursorMetadata)
+        hermesMetadata = try container.decodeIfPresent(HermesSessionMetadata.self, forKey: .hermesMetadata)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -499,6 +510,7 @@ public struct AgentSession: Equatable, Identifiable, Codable, Sendable {
         try container.encodeIfPresent(geminiMetadata, forKey: .geminiMetadata)
         try container.encodeIfPresent(openCodeMetadata, forKey: .openCodeMetadata)
         try container.encodeIfPresent(cursorMetadata, forKey: .cursorMetadata)
+        try container.encodeIfPresent(hermesMetadata, forKey: .hermesMetadata)
     }
 }
 
@@ -508,7 +520,7 @@ public extension AgentSession {
     }
 
     var isTrackedLiveSession: Bool {
-        !isDemoSession && (tool == .codex || tool == .claudeCode || tool == .geminiCLI || tool == .openCode || tool == .qoder || tool == .qwenCode || tool == .factory || tool == .codebuddy || tool == .cursor || tool == .kimiCLI)
+        !isDemoSession && (tool == .codex || tool == .claudeCode || tool == .geminiCLI || tool == .openCode || tool == .qoder || tool == .qwenCode || tool == .factory || tool == .codebuddy || tool == .cursor || tool == .kimiCLI || tool == .hermes)
     }
 
     var isTrackedLiveCodexSession: Bool {
@@ -539,7 +551,7 @@ public extension AgentSession {
     }
 
     var lastAssistantMessageText: String? {
-        codexMetadata?.lastAssistantMessage ?? claudeMetadata?.lastAssistantMessage ?? geminiMetadata?.lastAssistantMessage ?? openCodeMetadata?.lastAssistantMessage ?? cursorMetadata?.lastAssistantMessage
+        codexMetadata?.lastAssistantMessage ?? claudeMetadata?.lastAssistantMessage ?? geminiMetadata?.lastAssistantMessage ?? openCodeMetadata?.lastAssistantMessage ?? cursorMetadata?.lastAssistantMessage ?? hermesMetadata?.lastAssistantMessage
     }
 
     var completionAssistantMessageText: String? {

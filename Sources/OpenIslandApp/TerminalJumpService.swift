@@ -243,6 +243,14 @@ struct TerminalJumpService {
     }
 
     func jump(to target: JumpTarget) throws -> String {
+        // Hermes is a web application — open the WebUI in the default browser.
+        if target.terminalApp.lowercased() == "hermes" {
+            if let url = URL(string: "http://127.0.0.1:8787") {
+                NSWorkspace.shared.open(url)
+                return "Opened Hermes in your browser."
+            }
+        }
+
         // tmux sessions: switch pane first, then use the terminal-specific
         // jump to focus the correct window/tab (not just activate the app).
         if let tmuxTarget = target.tmuxTarget, !tmuxTarget.isEmpty {

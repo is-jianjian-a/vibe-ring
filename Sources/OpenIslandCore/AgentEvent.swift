@@ -14,6 +14,7 @@ public struct SessionStarted: Equatable, Codable, Sendable {
     public var geminiMetadata: GeminiSessionMetadata?
     public var openCodeMetadata: OpenCodeSessionMetadata?
     public var cursorMetadata: CursorSessionMetadata?
+    public var hermesMetadata: HermesSessionMetadata?
     public var isRemote: Bool
 
     public init(
@@ -30,6 +31,7 @@ public struct SessionStarted: Equatable, Codable, Sendable {
         geminiMetadata: GeminiSessionMetadata? = nil,
         openCodeMetadata: OpenCodeSessionMetadata? = nil,
         cursorMetadata: CursorSessionMetadata? = nil,
+        hermesMetadata: HermesSessionMetadata? = nil,
         isRemote: Bool = false
     ) {
         self.sessionID = sessionID
@@ -45,6 +47,7 @@ public struct SessionStarted: Equatable, Codable, Sendable {
         self.geminiMetadata = geminiMetadata
         self.openCodeMetadata = openCodeMetadata
         self.cursorMetadata = cursorMetadata
+        self.hermesMetadata = hermesMetadata
         self.isRemote = isRemote
     }
 }
