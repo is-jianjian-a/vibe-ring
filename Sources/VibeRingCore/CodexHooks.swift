@@ -361,10 +361,6 @@ public enum CodexHookOutputEncoder {
             return line
         case .claudeHookDirective:
             return nil
-        case .openCodeHookDirective:
-            return nil
-        case .cursorHookDirective:
-            return nil
         }
     }
 }

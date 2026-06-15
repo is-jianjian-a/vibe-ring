@@ -25,15 +25,11 @@ private struct SetupCommand {
         case installClaude
         case uninstallClaude
         case statusClaude
-        case installKimi
-        case uninstallKimi
-        case statusKimi
     }
 
     let action: Action
     let codexDirectory: URL
     let claudeDirectory: URL
-    let kimiDirectory: URL
     let hooksBinary: URL?
 
     init(arguments: [String]) throws {
@@ -47,7 +43,6 @@ private struct SetupCommand {
         var hooksBinary: URL?
         var codexDirectory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
         var claudeDirectory = ClaudeConfigDirectory.resolved()
-        var kimiDirectory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".kimi", isDirectory: true)
 
         var index = 1
         while index < arguments.count {
@@ -73,13 +68,6 @@ private struct SetupCommand {
                 }
                 claudeDirectory = URL(fileURLWithPath: arguments[index]).standardizedFileURL
 
-            case "--kimi-dir":
-                index += 1
-                guard index < arguments.count else {
-                    throw SetupError.missingValue("--kimi-dir")
-                }
-                kimiDirectory = URL(fileURLWithPath: arguments[index]).standardizedFileURL
-
             default:
                 throw SetupError.unexpectedArgument(arguments[index])
             }
@@ -87,13 +75,12 @@ private struct SetupCommand {
             index += 1
         }
 
-        if (action == .install || action == .installClaude || action == .installKimi), hooksBinary == nil {
+        if (action == .install || action == .installClaude), hooksBinary == nil {
             hooksBinary = HooksBinaryLocator.locate()
         }
 
         self.codexDirectory = codexDirectory
         self.claudeDirectory = claudeDirectory
-        self.kimiDirectory = kimiDirectory
         self.hooksBinary = hooksBinary
     }
 
@@ -111,12 +98,6 @@ private struct SetupCommand {
             try uninstallClaude()
         case .statusClaude:
             try statusClaude()
-        case .installKimi:
-            try installKimi()
-        case .uninstallKimi:
-            try uninstallKimi()
-        case .statusKimi:
-            try statusKimi()
         }
     }
 
@@ -211,47 +192,6 @@ private struct SetupCommand {
             print("Manifest: missing")
         }
     }
-
-    private func installKimi() throws {
-        guard let hooksBinary else {
-            throw SetupError.usage
-        }
-
-        let manager = KimiHookInstallationManager(kimiDirectory: kimiDirectory)
-        let status = try manager.install(hooksBinaryURL: hooksBinary)
-
-        print("Installed Vibe Ring Kimi hooks.")
-        print("Kimi dir: \(status.kimiDirectory.path)")
-        print("Hooks binary: \(hooksBinary.path)")
-    }
-
-    private func uninstallKimi() throws {
-        let manager = KimiHookInstallationManager(kimiDirectory: kimiDirectory)
-        let status = try manager.uninstall()
-
-        print("Removed Vibe Ring Kimi hooks.")
-        print("Kimi dir: \(status.kimiDirectory.path)")
-        if FileManager.default.fileExists(atPath: status.configURL.path) {
-            print("Preserved unrelated [[hooks]] entries in config.toml.")
-        }
-    }
-
-    private func statusKimi() throws {
-        let manager = KimiHookInstallationManager(kimiDirectory: kimiDirectory)
-        let status = try manager.status(hooksBinaryURL: hooksBinary)
-
-        print("Kimi dir: \(status.kimiDirectory.path)")
-        print("Managed hooks present: \(status.managedHooksPresent ? "yes" : "no")")
-        if let hooksBinary {
-            print("Hooks binary: \(hooksBinary.path)")
-        }
-        if let manifest = status.manifest {
-            print("Manifest: present")
-            print("Hook command: \(manifest.hookCommand)")
-        } else {
-            print("Manifest: missing")
-        }
-    }
 }
 
 private enum SetupError: Error, LocalizedError {
@@ -270,9 +210,6 @@ private enum SetupError: Error, LocalizedError {
               swift run VibeRingSetup installClaude [--hooks-binary /abs/path/to/VibeRingHooks] [--claude-dir /abs/path/to/.claude]
               swift run VibeRingSetup uninstallClaude [--claude-dir /abs/path/to/.claude]
               swift run VibeRingSetup statusClaude [--hooks-binary /abs/path/to/VibeRingHooks] [--claude-dir /abs/path/to/.claude]
-              swift run VibeRingSetup installKimi [--hooks-binary /abs/path/to/VibeRingHooks] [--kimi-dir /abs/path/to/.kimi]
-              swift run VibeRingSetup uninstallKimi [--kimi-dir /abs/path/to/.kimi]
-              swift run VibeRingSetup statusKimi [--hooks-binary /abs/path/to/VibeRingHooks] [--kimi-dir /abs/path/to/.kimi]
             """
         case let .missingValue(flag):
             "Missing value for \(flag)"

@@ -643,10 +643,6 @@ public enum ClaudeHookOutputEncoder {
             data = nil
         case .codexHookDirective:
             data = nil
-        case .openCodeHookDirective:
-            data = nil
-        case .cursorHookDirective:
-            data = nil
         case let .claudeHookDirective(directive):
             switch directive {
             case let .preToolUse(payload):
@@ -881,20 +877,7 @@ public extension ClaudeHookPayload {
     /// Resolves the `AgentTool` for this payload based on `hookSource`.
     /// Defaults to `.claudeCode` for unknown or nil sources.
     var resolvedAgentTool: AgentTool {
-        switch hookSource {
-        case "qoder":
-            return .qoder
-        case "qwen":
-            return .qwenCode
-        case "factory", "droid":
-            return .factory
-        case "codebuddy":
-            return .codebuddy
-        case "kimi":
-            return .kimiCLI
-        default:
-            return .claudeCode
-        }
+        .claudeCode
     }
 
     var permissionRequestTitle: String {

@@ -410,14 +410,6 @@ struct SetupSettingsPane: View {
 
     @State private var confirmingUninstallClaude = false
     @State private var confirmingUninstallCodex = false
-    @State private var confirmingUninstallOpenCode = false
-    @State private var confirmingUninstallQoder = false
-    @State private var confirmingUninstallQwenCode = false
-    @State private var confirmingUninstallFactory = false
-    @State private var confirmingUninstallCodebuddy = false
-    @State private var confirmingUninstallCursor = false
-    @State private var confirmingUninstallGemini = false
-    @State private var confirmingUninstallKimi = false
     @State private var confirmingUninstallClaudeUsage = false
 
     private var lang: LanguageManager { model.lang }
@@ -465,143 +457,6 @@ struct SetupSettingsPane: View {
                     Text(lang.t("settings.general.uninstallConfirmMessage.codex"))
                 }
 
-                hookRow(
-                    name: "OpenCode",
-                    installed: model.openCodePluginInstalled,
-                    busy: model.isOpenCodeSetupBusy,
-                    requiresBinary: false,
-                    configLocationURL: model.openCodePluginStatus?.configURL,
-                    installAction: { model.installOpenCodePlugin() },
-                    uninstallAction: { confirmingUninstallOpenCode = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallOpenCode) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallOpenCodePlugin()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove the Vibe Ring plugin from ~/.config/opencode/plugins/.")
-                }
-
-                hookRow(
-                    name: "Qoder",
-                    installed: model.qoderHooksInstalled,
-                    busy: model.isQoderHookSetupBusy,
-                    configLocationURL: model.qoderHookStatus?.settingsURL,
-                    installAction: { model.installQoderHooks() },
-                    uninstallAction: { confirmingUninstallQoder = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallQoder) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallQoderHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.qoder/settings.json.")
-                }
-
-                hookRow(
-                    name: "Qwen Code",
-                    installed: model.qwenCodeHooksInstalled,
-                    busy: model.isQwenCodeHookSetupBusy,
-                    configLocationURL: model.qwenCodeHookStatus?.settingsURL,
-                    installAction: { model.installQwenCodeHooks() },
-                    uninstallAction: { confirmingUninstallQwenCode = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallQwenCode) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallQwenCodeHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.qwen/settings.json.")
-                }
-
-                hookRow(
-                    name: "Factory",
-                    installed: model.factoryHooksInstalled,
-                    busy: model.isFactoryHookSetupBusy,
-                    configLocationURL: model.factoryHookStatus?.settingsURL,
-                    installAction: { model.installFactoryHooks() },
-                    uninstallAction: { confirmingUninstallFactory = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallFactory) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallFactoryHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.factory/settings.json.")
-                }
-
-                hookRow(
-                    name: "CodeBuddy",
-                    installed: model.codebuddyHooksInstalled,
-                    busy: model.isCodebuddyHookSetupBusy,
-                    configLocationURL: model.codebuddyHookStatus?.settingsURL,
-                    installAction: { model.installCodebuddyHooks() },
-                    uninstallAction: { confirmingUninstallCodebuddy = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallCodebuddy) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallCodebuddyHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.codebuddy/settings.json.")
-                }
-
-                hookRow(
-                    name: "Cursor",
-                    installed: model.cursorHooksInstalled,
-                    busy: model.isCursorHookSetupBusy,
-                    requiresBinary: true,
-                    configLocationURL: model.cursorHookStatus?.hooksURL,
-                    installAction: { model.installCursorHooks() },
-                    uninstallAction: { confirmingUninstallCursor = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallCursor) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallCursorHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove the Vibe Ring hooks from ~/.cursor/hooks.json.")
-                }
-
-                hookRow(
-                    name: "Gemini CLI",
-                    installed: model.geminiHooksInstalled,
-                    busy: model.isGeminiHookSetupBusy,
-                    configLocationURL: geminiHookConfigURL,
-                    installAction: { model.installGeminiHooks() },
-                    uninstallAction: { confirmingUninstallGemini = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallGemini) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallGeminiHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.gemini/settings.json.")
-                }
-
-                hookRow(
-                    name: "Kimi CLI",
-                    installed: model.kimiHooksInstalled,
-                    busy: model.isKimiHookSetupBusy,
-                    configLocationURL: model.kimiHookStatus?.configURL,
-                    installAction: { model.installKimiHooks() },
-                    uninstallAction: { confirmingUninstallKimi = true }
-                )
-                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallKimi) {
-                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
-                        model.uninstallKimiHooks()
-                    }
-                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
-                } message: {
-                    Text("This will remove Vibe Ring hooks from ~/.kimi/config.toml.")
-                }
             }
 
             Section {
@@ -671,14 +526,6 @@ struct SetupSettingsPane: View {
                 Button(lang.t("setup.installAll")) {
                     if !model.claudeHooksInstalled { model.installClaudeHooks() }
                     if !model.codexHooksInstalled { model.installCodexHooks() }
-                    if !model.openCodePluginInstalled { model.installOpenCodePlugin() }
-                    if !model.qoderHooksInstalled { model.installQoderHooks() }
-                    if !model.qwenCodeHooksInstalled { model.installQwenCodeHooks() }
-                    if !model.factoryHooksInstalled { model.installFactoryHooks() }
-                    if !model.codebuddyHooksInstalled { model.installCodebuddyHooks() }
-                    if !model.cursorHooksInstalled { model.installCursorHooks() }
-                    if !model.geminiHooksInstalled { model.installGeminiHooks() }
-                    if !model.kimiHooksInstalled { model.installKimiHooks() }
                     if !model.claudeUsageInstalled { model.installClaudeUsageBridge() }
                 }
                 .disabled(model.hooksBinaryURL == nil || allReady)
@@ -738,9 +585,7 @@ struct SetupSettingsPane: View {
     }
 
     private var allReady: Bool {
-        model.claudeHooksInstalled && model.codexHooksInstalled && model.openCodePluginInstalled
-            && model.qoderHooksInstalled && model.qwenCodeHooksInstalled && model.factoryHooksInstalled && model.codebuddyHooksInstalled
-            && model.cursorHooksInstalled && model.geminiHooksInstalled && model.kimiHooksInstalled && model.claudeUsageInstalled
+        model.claudeHooksInstalled && model.codexHooksInstalled && model.claudeUsageInstalled
     }
 
     @ViewBuilder

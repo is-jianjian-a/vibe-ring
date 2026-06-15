@@ -69,10 +69,7 @@ public struct SessionState: Equatable, Sendable {
                 firstSeenAt: preservedFirstSeenAt,
                 jumpTarget: payload.jumpTarget,
                 codexMetadata: payload.codexMetadata?.isEmpty == true ? nil : payload.codexMetadata,
-                claudeMetadata: payload.claudeMetadata?.isEmpty == true ? nil : payload.claudeMetadata,
-                geminiMetadata: payload.geminiMetadata?.isEmpty == true ? nil : payload.geminiMetadata,
-                openCodeMetadata: payload.openCodeMetadata?.isEmpty == true ? nil : payload.openCodeMetadata,
-                cursorMetadata: payload.cursorMetadata?.isEmpty == true ? nil : payload.cursorMetadata
+                claudeMetadata: payload.claudeMetadata?.isEmpty == true ? nil : payload.claudeMetadata
             )
             session.isRemote = payload.isRemote
             session.isHookManaged = payload.origin == .live
@@ -179,33 +176,6 @@ public struct SessionState: Equatable, Sendable {
             session.updatedAt = payload.timestamp
             upsert(session)
 
-        case let .geminiSessionMetadataUpdated(payload):
-            guard var session = sessionsByID[payload.sessionID] else {
-                return
-            }
-
-            session.geminiMetadata = payload.geminiMetadata.isEmpty ? nil : payload.geminiMetadata
-            session.updatedAt = payload.timestamp
-            upsert(session)
-
-        case let .openCodeSessionMetadataUpdated(payload):
-            guard var session = sessionsByID[payload.sessionID] else {
-                return
-            }
-
-            session.openCodeMetadata = payload.openCodeMetadata.isEmpty ? nil : payload.openCodeMetadata
-            session.updatedAt = payload.timestamp
-            upsert(session)
-
-        case let .cursorSessionMetadataUpdated(payload):
-            guard var session = sessionsByID[payload.sessionID] else {
-                return
-            }
-
-            session.cursorMetadata = payload.cursorMetadata.isEmpty ? nil : payload.cursorMetadata
-            session.updatedAt = payload.timestamp
-            upsert(session)
-
         case let .actionableStateResolved(payload):
             guard var session = sessionsByID[payload.sessionID] else {
                 return
@@ -239,19 +209,15 @@ public struct SessionState: Equatable, Sendable {
         if resolution.isApproved {
             session.phase = .running
             switch session.tool {
-            case .claudeCode, .geminiCLI, .qoder, .qwenCode, .factory, .codebuddy, .kimiCLI, .hermes:
+            case .claudeCode, .hermes:
                 session.summary = "Permission approved. \(session.tool.displayName) continued the tool."
-            case .openCode:
-                session.summary = "Permission approved. OpenCode continued the tool."
             default:
                 session.summary = "Permission approved. Agent resumed work."
             }
         } else {
             session.phase = .completed
             switch session.tool {
-            case .claudeCode, .geminiCLI, .qoder, .qwenCode, .factory, .codebuddy, .kimiCLI, .hermes:
-                session.summary = "Permission denied in Vibe Ring."
-            case .openCode:
+            case .claudeCode, .hermes:
                 session.summary = "Permission denied in Vibe Ring."
             default:
                 session.summary = "Permission denied. Review the session in the terminal."
@@ -428,7 +394,6 @@ public struct SessionState: Equatable, Sendable {
 
     /// Remove sessions that are no longer visible in the island.
     /// Returns `true` if any sessions were removed.
-    @discardableResult
     /// Manually mark a session as completed and ended.
     /// Intended for remote sessions whose SSH tunnel dropped without a
     /// SessionEnd hook.

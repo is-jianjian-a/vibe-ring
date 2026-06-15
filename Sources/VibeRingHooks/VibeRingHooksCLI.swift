@@ -10,20 +10,12 @@ struct VibeRingHooksCLI {
     private enum HookSource: String {
         case codex
         case claude
-        case qoder
-        case qwen
-        case factory
-        case droid
-        case codebuddy
-        case cursor
-        case gemini
-        case kimi
 
         var isClaudeFormat: Bool {
             switch self {
-            case .claude, .qoder, .qwen, .factory, .droid, .codebuddy, .kimi:
+            case .claude:
                 return true
-            case .codex, .cursor, .gemini:
+            case .codex:
                 return false
             }
         }
@@ -66,7 +58,7 @@ struct VibeRingHooksCLI {
                 if let output = try CodexHookOutputEncoder.standardOutput(for: response) {
                     FileHandle.standardOutput.write(output)
                 }
-            case .claude, .qoder, .qwen, .factory, .droid, .codebuddy, .kimi:
+            case .claude:
                 var payload = try decoder
                     .decode(ClaudeHookPayload.self, from: input)
                     .withRuntimeContext(environment: ProcessInfo.processInfo.environment)
@@ -84,29 +76,6 @@ struct VibeRingHooksCLI {
                 if let output = try ClaudeHookOutputEncoder.standardOutput(for: response) {
                     FileHandle.standardOutput.write(output)
                 }
-            case .cursor:
-                let payload = try decoder.decode(CursorHookPayload.self, from: input)
-
-                let timeout: TimeInterval = payload.isBlockingHook
-                    ? Self.interactiveClaudeHookTimeout
-                    : 45
-
-                guard let response = try? client.send(.processCursorHook(payload), timeout: timeout) else {
-                    return
-                }
-
-                if case let .cursorHookDirective(directive) = response {
-                    let encoder = JSONEncoder()
-                    let output = try encoder.encode(directive)
-                    FileHandle.standardOutput.write(output)
-                    FileHandle.standardOutput.write(Data("\n".utf8))
-                }
-            case .gemini:
-                let payload = try decoder
-                    .decode(GeminiHookPayload.self, from: input)
-                    .withRuntimeContext(environment: ProcessInfo.processInfo.environment)
-
-                _ = try? client.send(.processGeminiHook(payload), timeout: 45)
             }
         } catch {
             // Hooks should fail open so the CLI continues working even if the bridge is unavailable.

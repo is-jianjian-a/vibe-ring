@@ -1478,12 +1478,6 @@ private struct IslandSessionRow: View {
         switch session.tool {
         case .claudeCode:
             "claude"
-        case .geminiCLI:
-            "gemini"
-        case .qwenCode:
-            "qwen"
-        case .kimiCLI:
-            "kimi"
         default:
             session.tool.shortName.lowercased()
         }
