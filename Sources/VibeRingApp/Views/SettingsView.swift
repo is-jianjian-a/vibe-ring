@@ -208,7 +208,12 @@ struct GeneralSettingsPane: View {
             Section(lang.t("settings.general.behavior")) {
                 Toggle(lang.t("settings.general.pinPanelOpen"), isOn: Binding(
                     get: { model.pinPanelOpen },
-                    set: { model.pinPanelOpen = $0 }
+                    set: {
+                        model.pinPanelOpen = $0
+                        if $0 {
+                            model.notchOpen(reason: .click)
+                        }
+                    }
                 ))
                 Toggle(lang.t("settings.general.showDockIcon"), isOn: Binding(
                     get: { model.showDockIcon },

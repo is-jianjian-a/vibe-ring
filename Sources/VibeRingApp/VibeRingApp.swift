@@ -95,10 +95,7 @@ struct VibeRingApp: App {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        Window("Vibe Ring Settings", id: "settings") {
-            SettingsWindowContent(model: appDelegate.model)
-        }
-        .windowResizability(.contentMinSize)
+        WindowSettings(model: appDelegate.model)
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
@@ -111,18 +108,19 @@ struct VibeRingApp: App {
     }
 }
 
-/// Refreshes the `openWindow` registration each time the settings
-/// window opens, keeping the closure current after window recreation.
-private struct SettingsWindowContent: View {
+private struct WindowSettings: Scene {
     var model: AppModel
     @Environment(\.openWindow) private var openWindow
 
-    var body: some View {
-        SettingsView(model: model)
-            .onAppear {
-                model.openSettingsWindow = { [openWindow] in
-                    openWindow(id: "settings")
+    var body: some Scene {
+        Window("Vibe Ring Settings", id: "settings") {
+            SettingsView(model: model)
+                .onAppear {
+                    model.openSettingsWindow = { [openWindow] in
+                        openWindow(id: "settings")
+                    }
                 }
-            }
+        }
+        .windowResizability(.contentMinSize)
     }
 }

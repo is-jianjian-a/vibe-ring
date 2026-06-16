@@ -102,6 +102,8 @@ struct IslandPanelView: View {
     private static let minimumRightUsageLaneWidth: CGFloat = 58
 
     var model: AppModel
+    /// 独立窗口模式：去掉 notch/刘海几何和状态动画，纯内容
+    var standaloneMode: Bool = false
     private var lang: LanguageManager { model.lang }
 
     @State private var isHovering = false
@@ -167,7 +169,73 @@ struct IslandPanelView: View {
         usesNotchAwareOpenedHeader ? Self.notchHeaderHorizontalPadding : Self.headerHorizontalPadding
     }
 
+    @ViewBuilder
     var body: some View {
+        if standaloneMode {
+            standaloneBody
+        } else {
+            overlayBody
+        }
+    }
+
+    /// 独立窗口布局 — 无 notch 几何、无动画、无 hover 开合
+    private var standaloneBody: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                headerIconButton(
+                    systemName: model.isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                    tint: .white.opacity(0.62)
+                ) { model.toggleSoundMuted() }
+                headerIconButton(
+                    systemName: "arrow.clockwise",
+                    tint: .white.opacity(0.62),
+                    accessibilityLabel: "Refresh sessions"
+                ) { model.refreshSessions() }
+                headerIconButton(systemName: "gearshape.fill", tint: .white.opacity(0.62)) {
+                    model.showSettings()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            ScrollView(.vertical) {
+                VStack(spacing: 0) {
+                    ForEach(model.islandSessionSections) { section in
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(section.sessions) { session in
+                                IslandSessionRow(
+                                    session: session,
+                                    referenceDate: Date(),
+                                    stateIndicator: model.islandSessionStateIndicator,
+                                    completedStaleThreshold: model.completedStaleThreshold.seconds,
+                                    isActionable: session.phase.requiresAttention,
+                                    useDrawingGroup: false,
+                                    isInteractive: true,
+                                    sideInset: 12,
+                                    lang: model.lang,
+                                    onApprove: { model.approvePermission(for: session.id, action: $0) },
+                                    onAnswer: { model.answerQuestion(for: session.id, answer: $0) },
+                                    onReply: TerminalTextSender.canReply(to: session, enabled: model.completionReplyEnabled)
+                                        ? { model.replyToSession(session, text: $0) } : nil,
+                                    onJump: { model.jumpToSession(session) },
+                                    onDismiss: session.isRemote ? { model.dismissSession(session.id) } : nil
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 340, idealWidth: 400, maxWidth: 560,
+               minHeight: 300, idealHeight: 500, maxHeight: 700)
+        .background(V6Palette.ink)
+        .preferredColorScheme(.dark)
+    }
+
+    /// Overlay / 刘海 模式的原始 body
+    @ViewBuilder
+    private var overlayBody: some View {
         GeometryReader { geometry in
             ZStack(alignment: .top) {
                 Color.clear

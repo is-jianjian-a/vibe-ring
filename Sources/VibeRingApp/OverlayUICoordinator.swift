@@ -134,6 +134,7 @@ final class OverlayUICoordinator {
     }
 
     func notchClose() {
+        guard !pinPanelOpen else { return }
         transitionOverlay(
             to: .closed,
             reason: nil,
@@ -350,6 +351,7 @@ final class OverlayUICoordinator {
     }
 
     func reconcileIslandSurfaceAfterStateChange() {
+        guard !pinPanelOpen else { return }
         guard islandSurface.isNotificationCard else {
             return
         }
