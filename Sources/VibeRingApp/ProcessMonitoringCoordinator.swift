@@ -29,10 +29,6 @@ final class ProcessMonitoringCoordinator {
     @ObservationIgnored
     var onCodexAppRunningChanged: ((_ isRunning: Bool) -> Void)?
 
-    /// Fires when Hermes is detected as running / no longer running.
-    @ObservationIgnored
-    var onHermesRunningChanged: ((_ isRunning: Bool) -> Void)?
-
     @ObservationIgnored
     let activeAgentProcessDiscovery = ActiveAgentProcessDiscovery()
 
@@ -47,9 +43,6 @@ final class ProcessMonitoringCoordinator {
 
     @ObservationIgnored
     private var wasCodexAppRunning = false
-
-    @ObservationIgnored
-    private var wasHermesRunning = false
 
     @ObservationIgnored
     private var immediateReconciliationTask: Task<Void, Never>?
@@ -165,11 +158,6 @@ final class ProcessMonitoringCoordinator {
         if isCodexAppRunning != wasCodexAppRunning {
             wasCodexAppRunning = isCodexAppRunning
             onCodexAppRunningChanged?(isCodexAppRunning)
-        }
-        let isHermesRunning = activeProcesses.contains { $0.tool == .hermes }
-        if isHermesRunning != wasHermesRunning {
-            wasHermesRunning = isHermesRunning
-            onHermesRunningChanged?(isHermesRunning)
         }
         let sessions = local.sessions.filter(\.isTrackedLiveSession)
         guard !sessions.isEmpty else {
@@ -429,16 +417,6 @@ final class ProcessMonitoringCoordinator {
         let hasKimiProcess = activeProcesses.contains { $0.tool == .kimiCLI }
         if hasKimiProcess {
             for session in sessions where session.tool == .kimiCLI && !session.isDemoSession {
-                aliveIDs.insert(session.id)
-            }
-        }
-
-        // Hermes sessions: Hermes is a web application — we cannot match
-        // individual session IDs from ps/lsof.  Keep Hermes sessions alive
-        // while any Hermes process is running.
-        let hasHermesProcess = activeProcesses.contains { $0.tool == .hermes }
-        if hasHermesProcess {
-            for session in sessions where session.tool == .hermes && !session.isDemoSession {
                 aliveIDs.insert(session.id)
             }
         }

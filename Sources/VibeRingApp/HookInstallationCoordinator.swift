@@ -96,6 +96,89 @@ final class HookInstallationCoordinator {
     @ObservationIgnored
     private var codexUsageMonitorTask: Task<Void, Never>?
 
+    // MARK: - Hermes plugin state
+
+    var isHermesPluginSetupBusy = false
+    var hermesPluginInstalled = false
+
+    /// The path where the Hermes plugin is expected:
+    /// `~/.hermes/plugins/vibe_ring/__init__.py`
+    var hermesPluginDirectoryURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".hermes/plugins/vibe_ring", isDirectory: true)
+    }
+
+    var isHermesPluginInstalled: Bool {
+        hermesPluginInstalled
+    }
+
+    func refreshHermesPluginStatus() {
+        let pluginFile = hermesPluginDirectoryURL.appendingPathComponent("__init__.py")
+        hermesPluginInstalled = FileManager.default.isReadableFile(atPath: pluginFile.path)
+    }
+
+    func installHermesPlugin() {
+        guard let pluginData = loadBundledHermesPlugin() else {
+            onStatusMessage?("Could not find the bundled Hermes plugin resource.")
+            return
+        }
+
+        isHermesPluginSetupBusy = true
+        onStatusMessage?("Installing Hermes plugin.")
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            defer { self.isHermesPluginSetupBusy = false }
+
+            do {
+                let pluginDir = self.hermesPluginDirectoryURL
+                try FileManager.default.createDirectory(at: pluginDir, withIntermediateDirectories: true)
+                let pluginFile = pluginDir.appendingPathComponent("__init__.py")
+                try pluginData.write(to: pluginFile)
+
+                self.hermesPluginInstalled = true
+                self.intentStore.setIntent(.installed, for: .hermes)
+                self.onStatusMessage?("Hermes plugin installed at \(pluginDir.path). Restart Hermes to activate.")
+            } catch {
+                self.onStatusMessage?("Hermes plugin install failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func uninstallHermesPlugin() {
+        isHermesPluginSetupBusy = true
+        onStatusMessage?("Removing Hermes plugin.")
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            defer { self.isHermesPluginSetupBusy = false }
+
+            do {
+                let pluginDir = self.hermesPluginDirectoryURL
+                if FileManager.default.fileExists(atPath: pluginDir.path) {
+                    try FileManager.default.removeItem(at: pluginDir)
+                }
+                self.hermesPluginInstalled = false
+                self.intentStore.setIntent(.uninstalled, for: .hermes)
+                self.onStatusMessage?("Hermes plugin removed.")
+            } catch {
+                self.onStatusMessage?("Hermes plugin removal failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func loadBundledHermesPlugin() -> Data? {
+        if let url = Bundle.appResources.url(forResource: "hermes-vibe-ring-plugin", withExtension: "py") {
+            return try? Data(contentsOf: url)
+        }
+        if let url = Bundle.main.url(forResource: "hermes-vibe-ring-plugin", withExtension: "py") {
+            return try? Data(contentsOf: url)
+        }
+        return nil
+    }
+
     @ObservationIgnored
     private var relativeTimestampFormatter: RelativeDateTimeFormatter {
         let formatter = RelativeDateTimeFormatter()
@@ -689,6 +772,11 @@ final class HookInstallationCoordinator {
                     self.onStatusMessage?("Failed to read Kimi hook status: \(error.localizedDescription)")
                 }
             }
+
+            group.addTask { @MainActor [weak self] in
+                guard let self else { return }
+                self.refreshHermesPluginStatus()
+            }
         }
     }
 
@@ -814,6 +902,7 @@ final class HookInstallationCoordinator {
         case .openCode: return !openCodePluginInstalled
         case .gemini: return !geminiHooksInstalled
         case .kimi: return !kimiHooksInstalled
+        case .hermes: return !isHermesPluginInstalled
         case .claudeUsageBridge: return !claudeUsageInstalled
         }
     }
@@ -838,6 +927,7 @@ final class HookInstallationCoordinator {
             case .openCode: return openCodePluginInstalled
             case .gemini: return geminiHooksInstalled
             case .kimi: return kimiHooksInstalled
+            case .hermes: return isHermesPluginInstalled
             case .claudeUsageBridge: return claudeUsageInstalled
             }
         }

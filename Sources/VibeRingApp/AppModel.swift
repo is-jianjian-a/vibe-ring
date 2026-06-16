@@ -67,7 +67,6 @@ final class AppModel {
     let discovery = SessionDiscoveryCoordinator()
     let monitoring = ProcessMonitoringCoordinator()
     let codexAppServer = CodexAppServerCoordinator()
-    let hermes = HermesCoordinator()
     let updateChecker = UpdateChecker()
 
     var notchStatus: NotchStatus {
@@ -95,6 +94,8 @@ final class AppModel {
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
     var claudeHooksInstalled: Bool { hooks.claudeHooksInstalled }
+    var hermesPluginInstalled: Bool { hooks.hermesPluginInstalled }
+    var isHermesPluginSetupBusy: Bool { hooks.isHermesPluginSetupBusy }
     var qoderHooksInstalled: Bool { hooks.qoderHooksInstalled }
     var qwenCodeHooksInstalled: Bool { hooks.qwenCodeHooksInstalled }
     var factoryHooksInstalled: Bool { hooks.factoryHooksInstalled }
@@ -164,6 +165,7 @@ final class AppModel {
             || hooks.openCodePluginInstalled
             || hooks.geminiHooksInstalled
             || hooks.kimiHooksInstalled
+            || hooks.hermesPluginInstalled
     }
     func refreshCodexHookStatus() { hooks.refreshCodexHookStatus() }
 
@@ -178,10 +180,13 @@ final class AppModel {
     func refreshCursorHookStatus() { hooks.refreshCursorHookStatus() }
     func refreshClaudeUsageState() { hooks.refreshClaudeUsageState() }
     func refreshCodexUsageState() { hooks.refreshCodexUsageState() }
+    func refreshHermesPluginStatus() { hooks.refreshHermesPluginStatus() }
     func installCodexHooks() { hooks.installCodexHooks() }
     func uninstallCodexHooks() { hooks.uninstallCodexHooks() }
     func installClaudeHooks() { hooks.installClaudeHooks() }
     func uninstallClaudeHooks() { hooks.uninstallClaudeHooks() }
+    func installHermesPlugin() { hooks.installHermesPlugin() }
+    func uninstallHermesPlugin() { hooks.uninstallHermesPlugin() }
     func installQoderHooks() { hooks.installQoderHooks() }
     func uninstallQoderHooks() { hooks.uninstallQoderHooks() }
     func installQwenCodeHooks() { hooks.installQwenCodeHooks() }
@@ -673,16 +678,6 @@ final class AppModel {
             self?.state.session(id: id) != nil
         }
 
-        hermes.onEvent = { [weak self] event in
-            self?.applyTrackedEvent(event, ingress: .bridge)
-        }
-        hermes.onStatusMessage = { [weak self] message in
-            self?.lastActionMessage = message
-        }
-        hermes.isSessionTracked = { [weak self] id in
-            self?.state.session(id: id) != nil
-        }
-
         monitoring.syntheticClaudeSessionPrefix = Self.syntheticClaudeSessionPrefix
         monitoring.stateAccessor = { [weak self] in self?.state ?? SessionState() }
         monitoring.stateUpdater = { [weak self] in self?.state = $0 }
@@ -702,14 +697,6 @@ final class AppModel {
                 self.codexAppServer.ensureConnected()
             } else {
                 self.codexAppServer.disconnect()
-            }
-        }
-        monitoring.onHermesRunningChanged = { [weak self] isRunning in
-            guard let self else { return }
-            if isRunning {
-                self.hermes.ensureConnected()
-            } else {
-                self.hermes.disconnect()
             }
         }
         refreshOverlayDisplayConfiguration()
@@ -1662,6 +1649,7 @@ final class AppModel {
                 if self.hooks.shouldAutoInstall(.cursor) { self.installCursorHooks() }
                 if self.hooks.shouldAutoInstall(.gemini) { self.installGeminiHooks() }
                 if self.hooks.shouldAutoInstall(.kimi) { self.installKimiHooks() }
+                if self.hooks.shouldAutoInstall(.hermes) { self.installHermesPlugin() }
                 if self.hooks.shouldAutoInstall(.claudeUsageBridge) { self.installClaudeUsageBridge() }
 
                 // Run health checks after install to detect stale paths, conflicts, etc.

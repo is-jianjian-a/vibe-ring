@@ -418,6 +418,7 @@ struct SetupSettingsPane: View {
     @State private var confirmingUninstallCursor = false
     @State private var confirmingUninstallGemini = false
     @State private var confirmingUninstallKimi = false
+    @State private var confirmingUninstallHermes = false
     @State private var confirmingUninstallClaudeUsage = false
 
     private var lang: LanguageManager { model.lang }
@@ -601,6 +602,25 @@ struct SetupSettingsPane: View {
                     Button(lang.t("settings.general.cancel"), role: .cancel) {}
                 } message: {
                     Text("This will remove Vibe Ring hooks from ~/.kimi/config.toml.")
+                }
+
+                // Hermes — plugin-based, no hooks binary needed
+                hookRow(
+                    name: "Hermes",
+                    installed: model.hermesPluginInstalled,
+                    busy: model.isHermesPluginSetupBusy,
+                    requiresBinary: false,
+                    configLocationURL: model.hooks.hermesPluginDirectoryURL,
+                    installAction: { model.installHermesPlugin() },
+                    uninstallAction: { confirmingUninstallHermes = true }
+                )
+                .alert(lang.t("settings.general.uninstallConfirmTitle"), isPresented: $confirmingUninstallHermes) {
+                    Button(lang.t("settings.general.uninstallConfirmAction"), role: .destructive) {
+                        model.uninstallHermesPlugin()
+                    }
+                    Button(lang.t("settings.general.cancel"), role: .cancel) {}
+                } message: {
+                    Text("This will remove the Vibe Ring plugin from ~/.hermes/plugins/vibe_ring/.")
                 }
             }
 
