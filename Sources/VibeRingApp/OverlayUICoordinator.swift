@@ -14,11 +14,24 @@ final class OverlayUICoordinator {
     var islandSurface: IslandSurface = .sessionList()
     var isOverlayVisible: Bool { notchStatus != .closed }
 
-    /// 断开自动收起 —— 面板保持展开直到用户主动关闭
+    /// 固定展开面板 —— 面板保持展开，并关闭全局鼠标事件监听
     var pinPanelOpen = false {
         didSet {
             guard pinPanelOpen != oldValue else { return }
             UserDefaults.standard.set(pinPanelOpen, forKey: "overlay.pinPanelOpen")
+            if pinPanelOpen {
+                // 把面板开到 clicked 状态
+                if notchStatus == .closed {
+                    notchOpen(reason: .click)
+                }
+                // 关键：停掉全局鼠标移动/点击事件监听
+                overlayPanelController.stopEventMonitoring()
+            } else {
+                // 恢复监听
+                if isOverlayVisible {
+                    overlayPanelController.startEventMonitoring()
+                }
+            }
         }
     }
 

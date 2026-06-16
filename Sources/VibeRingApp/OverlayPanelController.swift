@@ -224,7 +224,7 @@ final class OverlayPanelController {
 
     // MARK: - Mouse event monitoring
 
-    private func startEventMonitoring() {
+    func startEventMonitoring() {
         if model?.disablesOverlayEventMonitoringDuringHarness == true {
             return
         }
@@ -236,6 +236,10 @@ final class OverlayPanelController {
         } mouseDownHandler: { [weak self] location in
             self?.handleMouseDown(location)
         }
+    }
+
+    func stopEventMonitoring() {
+        eventMonitors.stop()
     }
 
     private func handleMouseMoved(_ screenLocation: NSPoint) {
