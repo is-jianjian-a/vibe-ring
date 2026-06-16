@@ -3,7 +3,7 @@
 ## 跑起来
 
 ```bash
-cd ~/vibe-coding/open-vibe-island
+cd /Users/zhijian/projects/open-vibe-island
 swift build && swift run VibeRingApp
 ```
 
