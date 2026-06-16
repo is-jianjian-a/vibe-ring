@@ -256,6 +256,12 @@ final class AppModel {
         set { overlay.overlayDisplaySelectionID = newValue }
     }
 
+    /// 固定展开面板 — 不自动收起
+    var pinPanelOpen: Bool {
+        get { overlay.pinPanelOpen }
+        set { overlay.pinPanelOpen = newValue }
+    }
+
     // MARK: - Appearance
 
     var appearanceSettingsProfile: IslandAppearanceDisplayProfile = .topBar {

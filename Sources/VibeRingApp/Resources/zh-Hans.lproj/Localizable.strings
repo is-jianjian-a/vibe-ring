@@ -22,6 +22,7 @@
 "settings.general.behavior" = "行为";
 "settings.general.hideFullscreen" = "全屏时隐藏";
 "settings.general.autoHideNoSessions" = "无活跃会话时自动隐藏";
+"settings.general.pinPanelOpen" = "固定展开面板";
 "settings.general.autoCollapse" = "鼠标离开时自动收起";
 "settings.general.showDockIcon" = "在 Dock 中显示图标";
 "settings.general.hapticFeedback" = "悬停时震动反馈";
@@ -135,6 +136,9 @@
 "setup.claudeConfigDir.reset" = "重置";
 "setup.claudeConfigDir.footer" = "适用于通过 CLAUDE_CONFIG_DIR 使用自定义配置路径启动 Claude Code 的用户。如无需要请保持默认。";
 "setup.section.hooks" = "CLI Hooks";
+"setup.hermesAutoDetect" = "Hermes";
+"setup.autoDetectConnected" = "已连接";
+"setup.autoDetectWaiting" = "等待 Hermes 进程";
 "setup.section.usage" = "用量桥接";
 "setup.section.permissions" = "权限";
 "setup.binaryReady" = "就绪";

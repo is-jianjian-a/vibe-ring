@@ -22,6 +22,7 @@
 "settings.general.behavior" = "Behavior";
 "settings.general.hideFullscreen" = "Hide in fullscreen";
 "settings.general.autoHideNoSessions" = "Auto-hide without active sessions";
+"settings.general.pinPanelOpen" = "Keep panel pinned open";
 "settings.general.autoCollapse" = "Auto-collapse on mouse exit";
 "settings.general.showDockIcon" = "Show icon in Dock";
 "settings.general.hapticFeedback" = "Haptic feedback on hover";
@@ -135,6 +136,9 @@
 "setup.claudeConfigDir.reset" = "Reset";
 "setup.claudeConfigDir.footer" = "For users who run Claude Code with CLAUDE_CONFIG_DIR. Leave default unless you use a custom config path.";
 "setup.section.hooks" = "CLI Hooks";
+"setup.hermesAutoDetect" = "Hermes";
+"setup.autoDetectConnected" = "Connected";
+"setup.autoDetectWaiting" = "Waiting for Hermes process";
 "setup.section.usage" = "Usage Bridge";
 "setup.section.permissions" = "Permissions";
 "setup.binaryReady" = "Ready";

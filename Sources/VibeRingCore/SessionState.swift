@@ -334,39 +334,20 @@ public struct SessionState: Equatable, Sendable {
                 continue
             }
 
-            // Hook-managed sessions primarily rely on hook lifecycle signals
-            // (SessionStart / SessionEnd).  However, if the bridge becomes
-            // unavailable the SessionEnd hook can never arrive, leaving the
-            // session permanently stuck as visible.  As a fallback, we also
-            // check process liveness: when the agent process is confirmed dead
-            // by two consecutive polls we mark the session ended so it can be
-            // cleaned up.
+            // Hook-managed sessions (Claude Code) rely on hook lifecycle signals
+            // (SessionStart / SessionEnd).  We do NOT use process liveness to
+            // decide their visibility — CLI subprocesses short-lived shell
+            // commands cause false negatives that trigger flicker/deletion.
+            // The SessionEnd hook is the authoritative end-of-life signal.
             if session.isHookManaged {
                 if session.isSessionEnded {
                     continue
                 }
-
-                // When a Codex session reached .completed via hooks (.stop)
-                // and Codex.app is still running, don't kill it through
-                // process polling — the CLI subprocess exits after each turn
-                // but the desktop app session is still valid.  The session
-                // stays visible as "Completed" and fades via island presence.
-                if session.tool == .codex && session.phase == .completed && isCodexAppRunning {
-                    upsert(session)
-                    continue
-                }
-
+                // Keep the session alive regardless of process visibility.
+                // Still track whether the process is there for tool-hint use.
                 if aliveSessionIDs.contains(id) {
                     session.processNotSeenCount = 0
-                } else {
-                    session.processNotSeenCount += 1
-                    if session.processNotSeenCount >= 2 {
-                        session.isSessionEnded = true
-                        session.phase = .completed
-                        changed.insert(id)
-                    }
                 }
-
                 upsert(session)
                 continue
             }

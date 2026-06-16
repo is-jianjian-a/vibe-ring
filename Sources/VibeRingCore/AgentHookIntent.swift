@@ -19,5 +19,6 @@ public enum AgentHookIntent: String, Codable, Sendable, CaseIterable {
 public enum AgentIdentifier: String, Codable, Sendable, CaseIterable {
     case claudeCode
     case codex
+    case hermes
     case claudeUsageBridge
 }

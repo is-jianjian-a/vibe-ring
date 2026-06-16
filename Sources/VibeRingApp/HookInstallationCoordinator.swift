@@ -483,6 +483,7 @@ final class HookInstallationCoordinator {
         case .claudeCode: return !claudeHooksInstalled
         case .codex: return !codexHooksInstalled
         case .claudeUsageBridge: return !claudeUsageInstalled
+        case .hermes: return false  // Hermes uses SQLite, no hooks needed
         }
     }
 
@@ -499,6 +500,7 @@ final class HookInstallationCoordinator {
             case .claudeCode: return claudeHooksInstalled
             case .codex: return codexHooksInstalled
             case .claudeUsageBridge: return claudeUsageInstalled
+            case .hermes: return false  // Hermes uses SQLite, no hooks needed
             }
         }
     }

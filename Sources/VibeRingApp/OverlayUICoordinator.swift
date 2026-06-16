@@ -14,6 +14,14 @@ final class OverlayUICoordinator {
     var islandSurface: IslandSurface = .sessionList()
     var isOverlayVisible: Bool { notchStatus != .closed }
 
+    /// 断开自动收起 —— 面板保持展开直到用户主动关闭
+    var pinPanelOpen = false {
+        didSet {
+            guard pinPanelOpen != oldValue else { return }
+            UserDefaults.standard.set(pinPanelOpen, forKey: "overlay.pinPanelOpen")
+        }
+    }
+
     var overlayDisplayOptions: [OverlayDisplayOption] = []
     var overlayPlacementDiagnostics: OverlayPlacementDiagnostics?
 
@@ -92,6 +100,7 @@ final class OverlayUICoordinator {
         overlayDisplaySelectionID = UserDefaults.standard.string(
             forKey: "overlay.display.preference"
         ) ?? OverlayDisplayOption.automaticID
+        pinPanelOpen = UserDefaults.standard.bool(forKey: "overlay.pinPanelOpen")
     }
 
     // MARK: - Overlay transitions
@@ -254,13 +263,9 @@ final class OverlayUICoordinator {
     // MARK: - Pointer tracking
 
     var shouldAutoCollapseOnMouseLeave: Bool {
-        if ignoresPointerExitDuringHarness {
-            return false
-        }
-
-        guard notchStatus == .opened else {
-            return false
-        }
+        if ignoresPointerExitDuringHarness { return false }
+        if pinPanelOpen { return false }
+        guard notchStatus == .opened else { return false }
 
         if notchOpenReason == .hover && !islandSurface.isNotificationCard {
             return true
@@ -383,7 +388,8 @@ final class OverlayUICoordinator {
         notificationAutoCollapseTask?.cancel()
         notificationAutoCollapseTask = nil
 
-        guard notchStatus == .opened,
+        guard !pinPanelOpen,
+              notchStatus == .opened,
               notchOpenReason == .notification,
               islandSurface.autoDismissesWhenPresentedAsNotification(session: activeIslandCardSession) else {
             return
