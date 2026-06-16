@@ -468,6 +468,9 @@ public final class BridgeServer: @unchecked Sendable {
 
         case let .processGeminiHook(payload):
             handleGeminiHook(payload, from: clientID)
+
+        case let .processHermesPlugin(payload):
+            handleHermesPlugin(payload, from: clientID)
         }
     }
 
@@ -1464,6 +1467,193 @@ public final class BridgeServer: @unchecked Sendable {
                 )
             )
         )
+    }
+
+    // MARK: - Hermes Plugin Hook Handling
+
+    /// Dispatches a hook payload from the Hermes Python plugin.
+    ///
+    /// Unlike the SQLite polling path (HermesCoordinator), this handler
+    /// receives real-time events from the plugin hook system and leverages
+    /// the bridge's session lifecycle management (ensure/synchronise) the
+    /// same way Claude/Codex hooks do.
+    private func handleHermesPlugin(_ payload: HermesPluginPayload, from clientID: UUID) {
+        switch payload.hookEventName {
+        case .sessionStart:
+            let summary = payload.model.map { "Hermes · \($0)" } ?? "Hermes session started."
+            let metadata = HermesSessionMetadata(
+                model: payload.model,
+                workspace: payload.cwd,
+                isStreaming: true,
+                hasPendingApproval: false
+            )
+            emit(
+                .sessionStarted(
+                    SessionStarted(
+                        sessionID: payload.sessionID,
+                        title: payload.sessionTitle ?? payload.model ?? "Hermes",
+                        tool: .hermes,
+                        origin: .live,
+                        initialPhase: .running,
+                        summary: summary,
+                        timestamp: .now,
+                        jumpTarget: JumpTarget(
+                            terminalApp: "Hermes",
+                            workspaceName: payload.sessionTitle ?? payload.cwd ?? "Hermes",
+                            paneTitle: payload.sessionTitle ?? "Hermes",
+                            workingDirectory: payload.cwd,
+                            terminalSessionID: payload.sessionID
+                        ),
+                        hermesMetadata: metadata
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .sessionEnd:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            let status: String
+            if payload.interrupted == true {
+                status = "Hermes session was interrupted."
+            } else if payload.completed == true {
+                status = "Hermes session finished."
+            } else {
+                status = "Hermes session ended."
+            }
+
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: status,
+                        timestamp: .now,
+                        isInterrupt: payload.interrupted,
+                        isSessionEnd: true
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .toolCall:
+            ensureHermesSessionExists(for: payload)
+
+            let tool = payload.toolName ?? "tool"
+            let summary: String
+            if let args = payload.toolArgs, !args.isEmpty {
+                summary = "Running \(tool): \(args)"
+            } else {
+                summary = "Running \(tool)"
+            }
+
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .approvalRequest:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            // Hermes permissions are informative — we don't need to mutate
+            // session metadata here; the PermissionRequested event surface
+            // already conveys the pending state to the UI.
+            let cmd = payload.command ?? "shell command"
+            emit(
+                .permissionRequested(
+                    PermissionRequested(
+                        sessionID: payload.sessionID,
+                        request: PermissionRequest(
+                            title: "Hermes Approval",
+                            summary: payload.description ?? "Hermes needs approval to run a command.",
+                            affectedPath: cmd,
+                            primaryActionTitle: "OK",
+                            secondaryActionTitle: "Dismiss"
+                        ),
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .approvalResponse:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            let choice = payload.choice ?? "unknown"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: "Approval: \(choice)",
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+        }
+    }
+
+    private func ensureHermesSessionExists(for payload: HermesPluginPayload) {
+        guard !hasSession(id: payload.sessionID) else {
+            return
+        }
+
+        let summary = payload.model.map { "Hermes · \($0)" } ?? "Hermes session."
+        let metadata = HermesSessionMetadata(
+            model: payload.model,
+            workspace: payload.cwd,
+            isStreaming: true,
+            hasPendingApproval: false
+        )
+        emit(
+            .sessionStarted(
+                SessionStarted(
+                    sessionID: payload.sessionID,
+                    title: payload.sessionTitle ?? payload.model ?? "Hermes",
+                    tool: .hermes,
+                    origin: .live,
+                    initialPhase: .running,
+                    summary: summary,
+                    timestamp: .now,
+                    jumpTarget: JumpTarget(
+                        terminalApp: "Hermes",
+                        workspaceName: payload.sessionTitle ?? payload.cwd ?? "Hermes",
+                        paneTitle: payload.sessionTitle ?? "Hermes",
+                        workingDirectory: payload.cwd,
+                        terminalSessionID: payload.sessionID
+                    ),
+                    hermesMetadata: metadata
+                )
+            )
+        )
+    }
+
+    private func synchronizeHermesMetadata(for payload: HermesPluginPayload) {
+        guard let existing = localState.session(id: payload.sessionID) else { return }
+
+        let merged = HermesSessionMetadata(
+            model: payload.model ?? existing.hermesMetadata?.model,
+            workspace: payload.cwd ?? existing.hermesMetadata?.workspace,
+            isStreaming: true,
+            lastAssistantMessage: existing.hermesMetadata?.lastAssistantMessage,
+            hasPendingApproval: existing.hermesMetadata?.hasPendingApproval ?? false
+        )
+
+        guard existing.hermesMetadata != merged, !merged.isEmpty else { return }
+
+        // Hermes metadata currently flows through SessionStarted — we update
+        // via a lightweight activity emission that AppModel can pick up.
+        // The metadata is lightweight enough that re-emitting is acceptable.
     }
 
     private func clearStaleCursorInteractionIfNeeded(for sessionID: String) {

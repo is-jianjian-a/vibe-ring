@@ -106,6 +106,10 @@ public final class CodexAppServerClient: @unchecked Sendable {
     private let lock = NSLock()
 
     public var onNotification: (@Sendable (CodexAppServerNotification) -> Void)?
+    /// Called when the app-server subprocess exits or becomes unreachable
+    /// (e.g. clean shutdown, crash, SIGKILL).  The coordinator uses this
+    /// to trigger automatic reconnection.
+    public var onDisconnect: (@Sendable () -> Void)?
 
     public init(codexPath: String = "/Applications/Codex.app/Contents/Resources/codex") {
         self.codexPath = codexPath
@@ -148,6 +152,20 @@ public final class CodexAppServerClient: @unchecked Sendable {
         }
 
         try proc.run()
+
+        // Watch for unexpected subprocess exit so the coordinator can
+        // schedule a reconnection.
+        Task { [weak self] in
+            guard let self else { return }
+            // Wait for the subprocess to exit.
+            proc.waitUntilExit()
+            // Only fire if we're still referencing this particular process;
+            // `stop()` sets `process = nil`.
+            Task { @MainActor [weak self] in
+                guard let self, self.process != nil else { return }
+                self.onDisconnect?()
+            }
+        }
 
         // Send initialize request.
         struct InitializeParams: Encodable {

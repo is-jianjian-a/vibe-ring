@@ -462,8 +462,7 @@ final class AppModel {
 
     /// Number of currently connected iPhone SSE clients.
     var watchConnectedDevices: Int {
-        // Placeholder — endpoint doesn't expose count yet
-        0
+        watchRelay?.endpoint.connectedDeviceCount ?? 0
     }
 
     private func startWatchRelay() {
