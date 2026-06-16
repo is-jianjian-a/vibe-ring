@@ -483,7 +483,6 @@ final class HookInstallationCoordinator {
         case .claudeCode: return !claudeHooksInstalled
         case .codex: return !codexHooksInstalled
         case .claudeUsageBridge: return !claudeUsageInstalled
-        default: return false
         }
     }
 
@@ -500,7 +499,6 @@ final class HookInstallationCoordinator {
             case .claudeCode: return claudeHooksInstalled
             case .codex: return codexHooksInstalled
             case .claudeUsageBridge: return claudeUsageInstalled
-            default: return false
             }
         }
     }

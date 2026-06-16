@@ -682,7 +682,7 @@ struct AppearanceSettingsPane: View {
                 return AppearanceSessionPreviewSection(id: id, title: title, items: groupItems)
             }
         case .agent:
-            let groups = ["Codex", "Claude", "Cursor", "Gemini"]
+            let groups = ["Codex", "Claude", "Hermes"]
             return groups.compactMap { agent in
                 let groupItems = items.filter { $0.agent == agent }
                 guard !groupItems.isEmpty else { return nil }

@@ -635,14 +635,11 @@ public extension CodexHookPayload {
 
     private static let noLocatorTerminalApps: Set<String> = [
         "cmux", "codex.app", "kaku", "wezterm", "zellij",
-        "vs code", "vs code insiders", "cursor", "windsurf", "trae",
-        "intellij idea", "webstorm", "pycharm", "goland", "clion",
-        "rubymine", "phpstorm", "rider", "rustrover",
     ]
 
     private func shouldUseFocusedTerminalLocator(for terminalApp: String) -> Bool {
         let lower = terminalApp.lowercased()
-        if lower.contains("ghostty") || lower.contains("jetbrains") {
+        if lower.contains("ghostty") {
             return false
         }
         return !Self.noLocatorTerminalApps.contains(lower)
@@ -706,14 +703,6 @@ public extension CodexHookPayload {
                 return "WezTerm"
             case "kaku":
                 return "Kaku"
-            case "vscode":
-                return "VS Code"
-            case "vscode-insiders":
-                return "VS Code Insiders"
-            case "windsurf":
-                return "Windsurf"
-            case "trae":
-                return "Trae"
             default:
                 break
             }
@@ -731,23 +720,6 @@ public extension CodexHookPayload {
         }
         if environment["GHOSTTY_RESOURCES_DIR"] != nil {
             return "Ghostty"
-        }
-
-        // JetBrains IDEs set TERMINAL_EMULATOR=JetBrains-JediTerm.
-        if let terminalEmulator = environment["TERMINAL_EMULATOR"]?.lowercased(),
-           terminalEmulator.contains("jetbrains") {
-            if let bundleID = environment["__CFBundleIdentifier"]?.lowercased() {
-                if bundleID.contains("webstorm") { return "WebStorm" }
-                if bundleID.contains("pycharm") { return "PyCharm" }
-                if bundleID.contains("goland") { return "GoLand" }
-                if bundleID.contains("clion") { return "CLion" }
-                if bundleID.contains("rubymine") { return "RubyMine" }
-                if bundleID.contains("phpstorm") { return "PhpStorm" }
-                if bundleID.contains("rider") { return "Rider" }
-                if bundleID.contains("rustrover") { return "RustRover" }
-                if bundleID.contains("intellij") { return "IntelliJ IDEA" }
-            }
-            return "IntelliJ IDEA"
         }
 
         return nil

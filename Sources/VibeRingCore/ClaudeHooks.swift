@@ -373,10 +373,8 @@ public struct ClaudeHookPayload: Equatable, Codable, Sendable {
     /// Set to `true` by the Python hook client to indicate a remote (SSH) session.
     public var remote: Bool?
 
-    /// The agent tool that produced this hook payload (e.g. "claude", "qoder", "factory", "codebuddy", "kimi").
-    /// Set by the hooks CLI from the `--source` argument; absent from the JSON emitted by agents
-    /// themselves but included on the Unix-socket wire so `BridgeServer.resolvedAgentTool` can
-    /// dispatch to the correct `AgentTool`.
+    /// The agent tool that produced this hook payload. Set by the hooks CLI from
+    /// the `--source` argument.
     public var hookSource: String?
 
     private enum CodingKeys: String, CodingKey {
@@ -1035,14 +1033,11 @@ public extension ClaudeHookPayload {
 
     private static let noLocatorTerminalApps: Set<String> = [
         "cmux", "kaku", "wezterm", "zellij",
-        "vs code", "vs code insiders", "cursor", "windsurf", "trae",
-        "intellij idea", "webstorm", "pycharm", "goland", "clion",
-        "rubymine", "phpstorm", "rider", "rustrover",
     ]
 
     private func shouldUseFocusedTerminalLocator(for terminalApp: String) -> Bool {
         let lower = terminalApp.lowercased()
-        if lower.contains("ghostty") || lower.contains("jetbrains") {
+        if lower.contains("ghostty") {
             return false
         }
         return !Self.noLocatorTerminalApps.contains(lower)
@@ -1177,19 +1172,6 @@ public extension ClaudeHookPayload {
                 return "Kaku"
             case "wezterm":
                 return "WezTerm"
-            case "vscode":
-                // Cursor also sets TERM_PROGRAM=vscode; check its unique
-                // env var first.
-                if environment["CURSOR_TRACE_ID"] != nil {
-                    return "Cursor"
-                }
-                return "VS Code"
-            case "vscode-insiders":
-                return "VS Code Insiders"
-            case "windsurf":
-                return "Windsurf"
-            case "trae":
-                return "Trae"
             default:
                 break
             }
@@ -1209,24 +1191,6 @@ public extension ClaudeHookPayload {
         }
         if environment["GHOSTTY_RESOURCES_DIR"] != nil {
             return "Ghostty"
-        }
-
-        // JetBrains IDEs set TERMINAL_EMULATOR=JetBrains-JediTerm.
-        if let terminalEmulator = environment["TERMINAL_EMULATOR"]?.lowercased(),
-           terminalEmulator.contains("jetbrains") {
-            // Try to identify the specific IDE from __CFBundleIdentifier or IDEA_INITIAL_DIRECTORY.
-            if let bundleID = environment["__CFBundleIdentifier"]?.lowercased() {
-                if bundleID.contains("webstorm") { return "WebStorm" }
-                if bundleID.contains("pycharm") { return "PyCharm" }
-                if bundleID.contains("goland") { return "GoLand" }
-                if bundleID.contains("clion") { return "CLion" }
-                if bundleID.contains("rubymine") { return "RubyMine" }
-                if bundleID.contains("phpstorm") { return "PhpStorm" }
-                if bundleID.contains("rider") { return "Rider" }
-                if bundleID.contains("rustrover") { return "RustRover" }
-                if bundleID.contains("intellij") { return "IntelliJ IDEA" }
-            }
-            return "IntelliJ IDEA"  // Fallback for unknown JetBrains IDE
         }
 
         return nil

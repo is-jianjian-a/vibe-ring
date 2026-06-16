@@ -17,16 +17,12 @@ This index is the repository map for humans and coding agents. Read these files 
 
 ## Hooks
 
-- [docs/hooks.md](./hooks.md) for the supported hook events, payload fields, and directive response protocol
+- [docs/hooks.md](./hooks.md) for the supported hook events, payload fields, and directive response protocol (Codex, Claude Code)
 
 ## Harness And Planning
 
 - [docs/exec-plans/README.md](./exec-plans/README.md) for the active and completed execution-plan convention
 - [docs/references/README.md](./references/README.md) for pinned reference material and external behavior baselines
-
-## Superpowers Plans
-
-- [docs/superpowers/plans/2026-04-18-opencode-stability.md](./superpowers/plans/2026-04-18-opencode-stability.md) for the OpenCode stability implementation plan
 
 ## Runtime And Product Notes
 

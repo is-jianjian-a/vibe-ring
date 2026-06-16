@@ -1,362 +1,68 @@
-<p align="center">
-  <img src="docs/images/readme-banner.svg" alt="Vibe Ring - agents in your menu bar" width="760">
-</p>
+# Vibe Ring
 
-<h1 align="center">Vibe Ring</h1>
+**开源、本地优先、原生 macOS AI 编码助手伴侣。**
 
-<p align="center">
-  <strong>Why pay for a closed-source app just to monitor your coding agents?</strong>
-  <br>
-  Open-source, local-first, native macOS companion for AI coding agents.
-  <br><br>
-  <a href="README.zh-CN.md">中文</a> | <strong>English</strong>
-</p>
+Vibe Ring 驻留在 Mac 的刘海（或顶栏），给你一个实时控制面——会话状态、权限审批、一键跳回正确的终端窗口。不用离开心流。
 
-<p align="center">
-  <a href="https://github.com/Octane0411/vibe-ring/releases/latest"><img src="https://img.shields.io/github/v/release/Octane0411/vibe-ring?style=flat-square&label=release&color=blue" alt="Latest Release"></a>
-  <a href="https://github.com/Octane0411/vibe-ring/stargazers"><img src="https://img.shields.io/github/stars/Octane0411/vibe-ring?style=flat-square&color=yellow" alt="Stars"></a>
-  <a href="https://discord.gg/bPF2HpbCFb"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord" alt="Discord"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL%20v3-green?style=flat-square" alt="License: GPL v3"></a>
-</p>
+> Forked from [open-vibe-island](https://github.com/Octane0411/open-vibe-island)，精简为核心三 Agent 形态。
 
-<p align="center">
-  <a href="https://github.com/Octane0411/vibe-ring/releases">Download</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="docs/roadmap.md">Roadmap</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+## 为什么用 Vibe Ring
 
-<p align="center">
-  <img src="docs/images/demo.gif" alt="Vibe Ring in action" width="720">
-</p>
+- **开源** — GPL v3，Fork 它，改它，发布你自己的版本
+- **本地优先** — 无服务器、无遥测、无账号。一切跑在你的 Mac 上
+- **原生 macOS** — SwiftUI + AppKit，不是 Electron 套壳
+- **多 Agent 一屏** — Claude Code、Codex、Hermes，一个环里全看到
+- **纯终端** — 一键跳回正确的终端窗口，不跟 IDE 绑定
 
----
+## 支持的 Agent
 
-## What is Vibe Ring?
+| Agent | 探测方式 | 审批 | 问答 | 跳转 |
+|-------|---------|------|------|------|
+| **Claude Code** | Hook 注入（14 个事件） + `ps` 进程发现 | ✅ Allow/Deny | ✅ 结构化问答 | 🎯 终端 |
+| **Codex** | Hook 注入 + Codex.app 深度集成 | ✅ Allow/Deny | — | 🎯 终端 / `codex://` |
+| **Hermes** | SQLite 直读 `~/.hermes/state.db`（5s 轮询） | — | — | 🌐 浏览器 |
 
-Vibe Ring sits in your Mac's **notch** (or top bar) and gives you a real-time control surface for your AI coding agents — session status, permission approvals, and instant jump-back to the right terminal. All without leaving your flow.
+## 支持的终端
 
-Think of it as an open-source [Vibe Island](https://vibeisland.app/) — **free, local-first, and you own every bit of it**.
+**独立终端**：Terminal.app、Ghostty、iTerm2、Warp、WezTerm、Kaku、cmux
 
-> *You don't need to pay for a product you can vibe, since you are a vibe coder.*
+**多路复用**：tmux、Zellij
 
-## Why Vibe Ring?
+跳转方式：AppleScript（Ghostty/iTerm2/Terminal）· CLI（WezTerm/Kaku/tmux/Zellij）· Unix Socket（cmux）· AX menu + SQLite（Warp）
 
-- **Open source** — GPL v3, fork it, mod it, ship your own version
-- **Local-first** — No server, no telemetry, no account. Everything runs on your Mac
-- **Native macOS** — SwiftUI + AppKit, not an Electron wrapper
-- **Multi-agent** — One surface for Claude Code, Codex, Cursor, Gemini CLI, OpenCode, and more
-- **Multi-terminal** — Jump back to the exact terminal/IDE session in one click
+## 快速开始
 
-## Supported Agents & Terminals
+### 下载
 
-**10 agents**: Claude Code, Codex, Cursor, Gemini CLI, Kimi CLI, OpenCode, Qoder, Qwen Code, Factory, CodeBuddy
+从 [GitHub Releases](https://github.com/is-jianjian-a/vibe-ring/releases) 下载最新 DMG。
 
-**15+ terminals & IDEs**: Terminal.app, Ghostty, iTerm2, WezTerm, Zellij, tmux, cmux, Kaku, VS Code, Cursor, Windsurf, Trae, JetBrains IDEs (IDEA, WebStorm, PyCharm, GoLand, CLion, RubyMine, PhpStorm, Rider, RustRover)
-
-<details>
-<summary>Full compatibility table</summary>
-
-### Code Agents
-
-| Agent | Status | Description |
-|---|---|---|
-| **Claude Code** | Supported | Hook integration, JSONL session discovery, status line bridge, usage tracking |
-| **Codex** (CLI) | Supported | Hook integration (SessionStart, UserPromptSubmit, Stop by default; PreToolUse/PostToolUse parseable but not default), usage tracking |
-| **Codex Desktop App** | Supported | Hook integration + app-server JSON-RPC connection for real-time thread/turn lifecycle. Precise conversation jump via `codex://threads/<id>` deep-link |
-| **OpenCode** | Supported | JS plugin integration, permission/question flows, process detection |
-| **Qoder** | Supported | Claude Code fork — same hook format, config at `~/.qoder/settings.json` |
-| **Qwen Code** | Supported | Claude Code fork — same hook format, config at `~/.qwen/settings.json` |
-| **Factory** | Supported | Claude Code fork — same hook format, config at `~/.factory/settings.json` |
-| **CodeBuddy** | Supported | Claude Code fork — same hook format, config at `~/.codebuddy/settings.json` |
-| **Cursor** | Supported | Hook integration via `~/.cursor/hooks.json`, session tracking, workspace jump-back |
-| **Gemini CLI** | Supported | Hook integration via `~/.gemini/settings.json`, session tracking, fire-and-forget events |
-| **Kimi CLI** | Supported | Hook integration via `~/.kimi/config.toml` `[[hooks]]`, session tracking, permission flow (reuses Claude payload) |
-
-### Terminals & IDEs
-
-| Terminal / IDE | Support Level | Description |
-|---|---|---|
-| **Terminal.app** | Full | Jump-back with TTY targeting |
-| **Ghostty** | Full | Jump-back with ID matching |
-| **cmux** | Full | Jump-back via Unix socket API |
-| **Kaku** | Full | Jump-back via CLI pane targeting |
-| **WezTerm** | Full | Jump-back via CLI pane targeting |
-| **iTerm2** | Full | Jump-back with session ID / TTY matching |
-| **tmux** (multiplexer) | Full | Jump-back with session/window/pane targeting |
-| **Zellij** | Full | Jump-back via CLI pane/tab targeting |
-| **VS Code** | Workspace | Activate workspace via `code` CLI |
-| **Cursor** | Workspace | Activate workspace via `cursor` CLI |
-| **Windsurf** | Workspace | Activate workspace via `windsurf` CLI |
-| **Trae** | Workspace | Activate workspace via `trae` CLI |
-| **JetBrains IDEs** | Workspace | IDEA, WebStorm, PyCharm, GoLand, CLion, RubyMine, PhpStorm, Rider, RustRover |
-| **Warp** | Full | Precision tab jump via SQLite pane lookup + AX menu click |
-
-### Other Features
-
-| Feature | Description |
-|---|---|
-| Notch / top-bar overlay | Notch area on notch Macs, top-center bar on others |
-| Settings | Hook install/uninstall, usage dashboard |
-| Notification mode | Auto-height panel for permission requests and session events |
-| Notification sounds | Configurable system sounds, mute toggle |
-| i18n | English, Simplified Chinese |
-| Session discovery | Auto-discover from local transcripts, persist across launches |
-| Auto-update | Sparkle-based automatic updates |
-| Signed & notarized | DMG packaging with Apple notarization |
-
-</details>
-
-## Quick Start
-
-### Option 1: Download
-
-Grab the latest DMG from [GitHub Releases](https://github.com/Octane0411/vibe-ring/releases) — signed and notarized, ready to run.
-
-### Option 2: Homebrew
+### 从源码构建
 
 ```bash
-brew install --cask octane0411/tap/vibering
-```
-
-Upgrade later with `brew upgrade --cask vibering`.
-
-### Option 3: Build from source
-
-```bash
-git clone https://github.com/Octane0411/vibe-ring.git
+git clone https://github.com/is-jianjian-a/vibe-ring.git
 cd vibe-ring
-open Package.swift   # Opens in Xcode — hit Run
+swift build && swift run VibeRingApp
 ```
 
-On first launch, Vibe Ring auto-discovers your active agent sessions and starts the live bridge. Hook installation is managed from the **Settings** window inside the app.
+> **环境要求**：macOS 14+，Swift 6.2
 
-> **Requirements**: macOS 14+, Swift 6.2, Xcode
+首次启动后，Vibe Ring 自动发现活跃的 Agent 会话并启动实时桥接。Hook 安装通过应用内的 **Settings** 窗口管理。
 
-## How It Works
+## 工作原理
 
 ```
-Agent (Claude Code / Codex / Cursor / ...)
-  ↓ hook event
+Agent 进程 (Claude Code / Codex / Hermes)
+  ↓ hook 事件 / SQLite 轮询
 VibeRingHooks CLI (stdin → Unix socket)
   ↓ JSON envelope
-BridgeServer (in-app)
-  ↓ state update
-Notch overlay UI ← you see it here
-  ↓ click
-Jump back → correct terminal / IDE
+BridgeServer (app 内)
+  ↓ 状态更新
+刘海覆盖层 UI ← 你在这里看到
+  ↓ 点击会话
+跳回 → 正确的终端窗口
 ```
 
-Hooks **fail open** — if Vibe Ring isn't running, your agents continue unaffected.
-
-<details>
-<summary>Architecture details</summary>
-
-Four targets in one Swift package:
-
-| Target | Role |
-|---|---|
-| **VibeRingApp** | SwiftUI + AppKit shell — menu bar, overlay panel, settings |
-| **VibeRingCore** | Shared library — models, bridge transport (Unix socket IPC), hooks, session persistence |
-| **VibeRingHooks** | Lightweight CLI invoked by agent hooks, forwards payloads via Unix socket |
-| **VibeRingSetup** | Installer CLI for managing `~/.codex/config.toml` and hook entries |
-
-See [docs/architecture.md](docs/architecture.md) for the full system design.
-
-</details>
-
-## Community
-
-Join us on **Discord** for discussion, feedback, and faster issue resolution:
-
-[![Discord](https://img.shields.io/discord/1490752192368476253?style=for-the-badge&logo=discord&label=Join%20Discord&color=5865F2)](https://discord.gg/bPF2HpbCFb)
-
-We welcome issues, pull requests, and new maintainers. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
-
-<details>
-<summary>WeChat group (for Chinese-speaking users)</summary>
-
-<img src="docs/images/wechat-group.jpg" alt="WeChat group QR code" width="240">
-
-</details>
-
-## Report a Bug via Your Code Agent
-
-Copy this prompt into your agent (Claude Code, Codex, etc.) to auto-generate a well-structured issue:
-
-<details>
-<summary>Click to expand</summary>
-
-```
-I'm having an issue with Vibe Ring (https://github.com/Octane0411/vibe-ring).
-
-Please help me file a GitHub issue. Do the following:
-
-1. Collect my environment info:
-   - Run `sw_vers` to get macOS version
-   - Run `swift --version` to get Swift version
-   - Check if Vibe Ring is running: `ps aux | grep -i "open.island\|VibeRingApp" | grep -v grep`
-   - Get the app version: `defaults read ~/Applications/Open\ Island\ Dev.app/Contents/Info.plist CFBundleShortVersionString 2>/dev/null || echo "unknown"`
-   - Check which terminal I'm using
-
-2. Ask me to describe:
-   - What I expected to happen
-   - What actually happened
-   - Steps to reproduce
-
-3. Create the issue on GitHub using `gh issue create` with this format:
-   - Title: concise summary
-   - Body with sections: **Environment**, **Description**, **Steps to Reproduce**, **Expected vs Actual Behavior**
-   - Add label "bug" if applicable
-
-Repository: Octane0411/vibe-ring
-```
-
-</details>
-
-## Star History
-
-<a href="https://star-history.com/#Octane0411/vibe-ring&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Octane0411/vibe-ring&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Octane0411/vibe-ring&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Octane0411/vibe-ring&type=Date" />
- </picture>
-</a>
-
-## Contributors
-
-<a href="https://github.com/Octane0411/vibe-ring/graphs/contributors">
-  <!-- CONTRIBUTORS-IMG:START -->
-  <img src="https://contrib.rocks/image?repo=Octane0411/vibe-ring&t=1780475743" />
-  <!-- CONTRIBUTORS-IMG:END -->
-</a>
-
----
-
-## Agent Parts
-
-This section is written for agents.
-
-The open-source macOS companion for terminal-native AI coding.
-
-`Vibe Ring` puts a lightweight control surface in your notch or top bar so you can keep an eye on live coding agents, follow session progress, and jump back to the right terminal without breaking flow.
-
-### Why This Product Exists
-
-AI coding is becoming part of the daily development loop, but the surrounding control layer still too often means handing your machine over to a closed-source paid app.
-
-`Vibe Ring` takes the opposite approach:
-
-- Open source
-- Local first, no server dependency
-- Native macOS (SwiftUI + AppKit)
-- Built to support the terminal workflow, not replace it
-
-### Who It Is For
-
-Developers who already live in the terminal and want a better way to work with coding agents on macOS without losing context.
-
-### Agent Integrations
-
-- **Codex CLI** — Hook-based integration. The Codex CLI managed installer installs `SessionStart`, `UserPromptSubmit`, and `Stop` by default to keep the terminal workflow low-noise. Vibe Ring can parse richer Codex hook events such as `PreToolUse` and `PostToolUse` when configured manually, but those events are not part of the default managed installation. Codex file edits may use internal apply-patch paths, so file-edit approval should not be treated as guaranteed `PreToolUse` coverage. Reads 5-hour and 7-day account usage windows from local rollout files. Install/uninstall managed hooks from the Settings window or CLI.
-- **Codex Desktop App** — Detected via `__CFBundleIdentifier`; hook sessions tagged as `isCodexAppSession` so they follow desktop-app liveness (tied to `NSWorkspace.shared.runningApplications` rather than the CLI subprocess that exits after each turn). In addition to hooks, Vibe Ring launches its own `codex app-server` subprocess and speaks JSON-RPC over stdio to receive live `thread/started`, `turn/started`, `turn/completed`, and `thread/closed` notifications. Clicking a session opens the exact conversation via the `codex://threads/<id>` URL scheme.
-- **Claude Code** — Hook-based integration via `~/.claude/settings.json`. Discovers sessions from `~/.claude/projects/` JSONL transcripts. Persists and restores sessions across app launches. Managed status line bridge with opt-in installation. Reads cached 5-hour and 7-day usage windows.
-- **OpenCode** — JS plugin integration via `~/.config/opencode/plugins/`. Plugin auto-installed on first launch. Receives session lifecycle, tool use, permission, and question events. Permission approval and question answering flows supported. Process detection via `ps`.
-- **Qoder** — Claude Code fork. Same hook format and events via `~/.qoder/settings.json`. Use `--source qoder` with the hooks binary.
-- **Qwen Code** — Claude Code fork. Same hook format and events via `~/.qwen/settings.json`. Use `--source qwen` with the hooks binary.
-- **Factory** — Claude Code fork. Same hook format and events via `~/.factory/settings.json`. Use `--source factory` with the hooks binary.
-- **CodeBuddy** — Claude Code fork. Same hook format and events via `~/.codebuddy/settings.json`. Use `--source codebuddy` with the hooks binary.
-- **Cursor** — Hook-based integration via `~/.cursor/hooks.json`. Receives `beforeSubmitPrompt`, `beforeShellExecution`, `beforeMCPExecution`, `beforeReadFile`, `afterFileEdit`, and `stop` events. Session persistence across app launches. Workspace jump-back via `cursor -r`. Use `--source cursor` with the hooks binary.
-- **Gemini CLI** — Hook-based integration via `~/.gemini/settings.json`. Receives `SessionStart`, `PreToolUse`, `PostToolUse`, `Stop`, and `UserPromptSubmit` events. Fire-and-forget (no block/deny). Use `--source gemini` with the hooks binary.
-- **Kimi CLI** — Hook-based integration via `~/.kimi/config.toml` `[[hooks]]` array (Moonshot AI). Kimi's hook payload is byte-compatible with Claude Code, so Vibe Ring reuses the Claude decode path and adds a dedicated TOML installer. Subscribes to `SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`, `PreToolUse`, and `PostToolUse`. Requires the Kimi CLI Hooks Beta. Use `--source kimi` with the hooks binary. Manage installation from the Settings window, or via CLI:
-
-  ```sh
-  swift run VibeRingSetup installKimi    # write [[hooks]] entries into ~/.kimi/config.toml
-  swift run VibeRingSetup statusKimi     # report whether managed hooks are present
-  swift run VibeRingSetup uninstallKimi  # remove managed entries, preserve user-authored [[hooks]]
-  ```
-
-### Terminal Support
-
-- **Terminal.app**, **Ghostty**, **cmux**, **Kaku**, **WezTerm**, **iTerm2**, and **Zellij** — Full jump-back support with session attachment matching (cmux via Unix socket API, Kaku/WezTerm/Zellij via CLI pane targeting, iTerm2 via AppleScript session/TTY probe)
-- **VS Code**, **VS Code Insiders**, **Cursor**, **Windsurf**, **Trae** — Workspace-level jump via respective CLI (`code -r`, `cursor -r`, etc.)
-- **JetBrains IDEs** (IntelliJ IDEA, WebStorm, PyCharm, GoLand, CLion, RubyMine, PhpStorm, Rider, RustRover) — Workspace-level jump via IDE CLI launcher
-- **Warp** — Precision tab jump via SQLite pane lookup, pid-based sibling-tab disambiguation, and AX menu click
-
-### UI & Display
-
-- **Notch overlay** — On Macs with a built-in notch, the island sits in the notch area; on external displays or non-notch Macs, it falls back to a compact top-center bar
-- **Settings** — Hook install/uninstall, Codex/Claude usage dashboard, General, Display, Sound, Shortcuts, Lab (advanced), About
-- **Notification mode** — Auto-height notification panel for permission requests and session events
-- **Notification sounds** — Configurable system sounds (default: Bottle) with mute toggle
-- **i18n** — English and Simplified Chinese
-
-### Session Management
-
-- Live session visibility with expandable detail rows
-- Session state reducer (`SessionState.apply`) as single source of truth
-- Automatic session discovery from local transcript files and cache
-- Process discovery via `ps`/`lsof` for active agent matching
-
-### Architecture
-
-Four targets in one Swift package:
-
-| Target | Role |
-|---|---|
-| **VibeRingApp** | SwiftUI + AppKit shell — menu bar, overlay panel, settings |
-| **VibeRingCore** | Shared library — models, bridge transport (Unix socket IPC), hooks, session persistence |
-| **VibeRingHooks** | Lightweight CLI invoked by agent hooks, forwards payloads via Unix socket |
-| **VibeRingSetup** | Installer CLI for managing `~/.codex/config.toml` and hook entries |
-
-### Quick Start (Agent)
-
-Build and run locally:
-
-```bash
-open Package.swift
-```
-
-Build a local `.app` bundle:
-
-```bash
-zsh scripts/package-app.sh
-```
-
-That script creates `output/package/Vibe Ring.app` and `output/package/Vibe Ring.zip`. Pass `VIBE_RING_SIGN_IDENTITY` to sign the bundle. See [docs/packaging.md](docs/packaging.md) for the full path, including notarization.
-
-#### Connect Codex
-
-Open the package in Xcode to run the macOS app target. On launch, the app restores its local cache, scans recent `~/.codex/sessions/**/rollout-*.jsonl` files for existing Codex sessions, and starts the live bridge for new hook events.
-
-The Settings window shows live Codex hook install status from `~/.codex`, and can install or uninstall managed hook entries directly. Installs copy the helper into `~/Library/Application Support/VibeRing/bin/VibeRingHooks` so repo renames do not break existing hooks.
-
-```bash
-swift build -c release --product VibeRingHooks
-swift run VibeRingSetup install
-swift run VibeRingSetup status
-swift run VibeRingSetup uninstall
-```
-
-#### Connect Claude Code
-
-Claude usage setup is available from the app's Settings window and remains opt-in. The bridge writes a managed `statusLine.command` to `~/.open-island/bin/open-island-statusline`, caches `rate_limits` into `/tmp/vibe-ring-rl.json`, and refuses to overwrite an existing custom status line automatically.
-
-### Repository Map
-
-- Start with [docs/index.md](docs/index.md) for the current doc map.
-- Read [docs/quality.md](docs/quality.md) for the quality baseline and verification approach.
-- Read [docs/hooks.md](docs/hooks.md) for all supported hook events, payload fields, and directive response formats.
-- Run `scripts/harness.sh` for automated checks (docs validation, tests, build).
-
-### Requirements
-
-- macOS 14+
-- Swift 6.2
-- Xcode (for the app target)
-
----
+Hook **fail open** — 即使 Vibe Ring 不运行，你的 Agent 也照常工作，不受影响。
 
 ## License
 

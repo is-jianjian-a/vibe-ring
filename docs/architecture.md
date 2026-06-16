@@ -13,13 +13,13 @@ The project is a single Swift package with four targets:
 
 ## Data Flow
 
-### Hook-based agents (Codex, Claude Code, and forks)
+### Hook-based agents (Codex, Claude Code)
 
 ```
 Agent
   │  stdin: JSON payload
   ▼
-VibeRingHooks CLI  (--source codex | --source claude | ...)
+VibeRingHooks CLI  (--source codex | --source claude)
   │  Unix socket
   ▼
 BridgeServer → AppModel → UI
@@ -31,10 +31,10 @@ VibeRingHooks CLI
 Agent
 ```
 
-### Plugin-based agents (OpenCode)
+### SQLite-based agents (Hermes)
 
 ```
-OpenCode → JS plugin (~/.config/opencode/plugins/) → Unix socket → BridgeServer → AppModel → UI
+Hermes CLI → ~/.hermes/state.db → HermesCoordinator (5s polling) → AppModel → UI
 ```
 
 ### Session discovery (on launch)

@@ -16,9 +16,9 @@
 
 - **本地优先** — 无服务器、无账号、无遥测
 - **伴随而非打扰** — Ring 在边缘呼吸，不抢占焦点
-- **多 Agent 统一** — Claude Code、Codex、Gemini CLI、Cursor、OpenCode、Hermes... 都在一个环里
+- **多 Agent 统一** — Claude Code、Codex、Hermes，都在一个环里
 - **感知优先于管理** — 第一目标是让你"感到"Agent 的状态，第二目标才是去操作它
-- **精准跳转** — 需要操作时，一键回到正确的终端/IDE/浏览器窗口
+- **精准跳转** — 需要操作时，一键回到正确的终端/浏览器窗口
 
 ## 产品形态
 
@@ -27,9 +27,6 @@
 - 展开面板显示 Agent 会话列表
 - 支持桌面通知、未来可扩展手机推送
 
-## 为什么要 Fork
+## 为什么 Fork
 
-vibe-ring 基于 vibe-ring 的架构，但有自己的方向：
-- 增强即时终端检测（从 open-island fork 嫁入）
-- 新增 Hermes Agent 支持（HTTP API 轮询）
-- 未来计划：四象限优先级、FIFO 队列、远程审批
+Vibe Ring 基于 [open-vibe-island](https://github.com/Octane0411/open-vibe-island) 的架构，精简为只保留核心三个 Agent（Claude Code、Codex、Hermes），专注终端原生工作流，去掉 IDE 集成。

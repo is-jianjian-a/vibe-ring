@@ -350,60 +350,6 @@ struct ActiveAgentProcessDiscovery {
             return "Zellij"
         }
 
-        // VS Code family — check forks BEFORE plain VS Code so fork apps that
-        // retain the upstream "Code Helper" naming inside their Electron
-        // framework aren't misidentified as VS Code (#415).
-        if lowered.contains("/cursor.app/") {
-            return "Cursor"
-        }
-        if lowered.contains("/windsurf.app/") {
-            return "Windsurf"
-        }
-        if lowered.contains("/trae.app/") {
-            return "Trae"
-        }
-        if lowered.contains("/qoder.app/") {
-            return "Qoder"
-        }
-        if lowered.contains("/codebuddy.app/") {
-            return "CodeBuddy"
-        }
-        if lowered.contains("/visual studio code - insiders.app/") {
-            return "VS Code Insiders"
-        }
-        if lowered.contains("/visual studio code.app/") {
-            return "VS Code"
-        }
-
-        // JetBrains IDEs
-        if lowered.contains("/intellij idea.app/") || lowered.contains("/idea.app/") {
-            return "IntelliJ IDEA"
-        }
-        if lowered.contains("/webstorm.app/") {
-            return "WebStorm"
-        }
-        if lowered.contains("/pycharm.app/") {
-            return "PyCharm"
-        }
-        if lowered.contains("/goland.app/") {
-            return "GoLand"
-        }
-        if lowered.contains("/clion.app/") {
-            return "CLion"
-        }
-        if lowered.contains("/rubymine.app/") {
-            return "RubyMine"
-        }
-        if lowered.contains("/phpstorm.app/") {
-            return "PhpStorm"
-        }
-        if lowered.contains("/rider.app/") {
-            return "Rider"
-        }
-        if lowered.contains("/rustrover.app/") {
-            return "RustRover"
-        }
-
         return nil
     }
 

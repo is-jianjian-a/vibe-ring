@@ -149,16 +149,16 @@ private enum DebugSessionFactory {
                 id: "session-claude-research",
                 workspace: "claude-research",
                 initialPrompt: "我更关注获取的部分 我想在其他 app 里实时展示我的 usage。",
-                latestPrompt: "为什么要查 Cursor 官方呢？这个事跟 Cursor 有什么关系？",
-                assistant: "不建议按“最古老”来选。最古老不等于最轻量且最适合这个任务。",
+                latestPrompt: "我更关注获取的部分 我想在其他 app 里实时展示我的 usage。",
+                assistant: "不建议按最古老来选，最古老不等于最轻量。",
                 age: 27 * 60,
                 now: now
             ),
             inactiveSession(
                 id: "session-personal",
                 workspace: "Personal",
-                initialPrompt: "[Image #1]我给你截了 3 张图，这个是我现在 Cursor 里面可用的模型。",
-                latestPrompt: "[Image #1]我给你截了 3 张图，这个是我现在 Cursor 里面可用的模型。",
+                initialPrompt: "[Image #1] 我给你截了一张图，这是我现在可用的模型列表。",
+                latestPrompt: "[Image #1] 我给你截了一张图，这是我现在可用的模型列表。",
                 assistant: "这张图里的模型，严格说不是这个 `voice-input` App 应该选的模…",
                 age: 32 * 60,
                 now: now
@@ -177,7 +177,7 @@ private enum DebugSessionFactory {
                 workspace: "voice-input",
                 initialPrompt: "看看 voice-input 这个仓库，重点关注模型选型。",
                 latestPrompt: "严格来说它应该选哪个模型？",
-                assistant: "如果目标是轻量实时，不建议直接按 Cursor 现成套餐来映射。",
+                assistant: "如果目标是轻量实时，不建议直接按现成套餐来映射。",
                 age: 78 * 60,
                 now: now
             ),

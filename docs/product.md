@@ -22,15 +22,9 @@ CLI coding agents are powerful, but they pull attention away from the editor and
 
 | Agent | Status | Notes |
 |---|---|---|
-| **Claude Code** | Supported | Hook integration, JSONL session discovery, status line bridge, usage tracking |
-| **Codex** | Supported | Full hook integration (SessionStart, UserPromptSubmit, Stop), usage tracking |
-| **OpenCode** | Supported | JS plugin integration, permission/question flows, process detection |
-| **Qoder** | Supported | Claude Code fork — same hook format, config at `~/.qoder/settings.json` |
-| **Qwen Code** | Supported | Claude Code fork — same hook format, config at `~/.qwen/settings.json` |
-| **Factory** | Supported | Claude Code fork — same hook format, config at `~/.factory/settings.json` |
-| **CodeBuddy** | Supported | Claude Code fork — same hook format, config at `~/.codebuddy/settings.json` |
-| **Gemini CLI** | Supported | Hook integration (`SessionStart`, `BeforeAgent`, `AfterAgent`, `SessionEnd`, `Notification`), session tracking, terminal jump metadata, completion-card compatibility handling |
-| **Kimi CLI** | Supported | Hook integration via `~/.kimi/config.toml` `[[hooks]]` (Moonshot AI). Kimi's hook payload is byte-compatible with Claude Code, so runtime reuses the Claude decode path; a dedicated TOML installer preserves user-authored hooks |
+| **Claude Code** | Supported | Hook integration (14 events), JSONL session discovery, status line bridge, usage tracking |
+| **Codex** | Supported | Full hook integration + Codex.app deep integration via JSON-RPC app-server, usage tracking |
+| **Hermes** | Supported | SQLite polling of `~/.hermes/state.db`, auto-discovers CLI sessions |
 
 ## Supported Terminals
 
@@ -43,7 +37,7 @@ CLI coding agents are powerful, but they pull attention away from the editor and
 | **WezTerm** | Full Support | Jump-back via CLI pane targeting |
 | **iTerm2** | Full Support | Jump-back with session ID / TTY matching |
 | **tmux** (multiplexer) | Full Support | Jump-back with session/window/pane targeting |
-| **Warp** | Planned | Fallback detection only |
+| **Warp** | Full Support | Precision tab jump via SQLite pane lookup + AX menu click |
 
 ## Features
 

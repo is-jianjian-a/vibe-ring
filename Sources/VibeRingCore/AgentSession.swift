@@ -21,9 +21,7 @@ public enum AgentTool: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// Claude Code forks share the same hook payload format.
-    /// Only Claude Code itself remains now; previously covered
-    /// qoder/qwenCode/factory/codebuddy/kimiCLI.
+    /// Only Claude Code itself remains now.
     public var isClaudeCodeFork: Bool { false }
 
     public var brandColorHex: String {
