@@ -38,10 +38,25 @@ public final class BridgeServer: @unchecked Sendable {
         let kind: Kind
     }
 
+    private struct PendingOpenCodeInteraction {
+        enum Kind {
+            case permission(OpenCodeHookPayload)
+            case question(OpenCodeHookPayload)
+        }
+
+        let clientID: UUID
+        let kind: Kind
+    }
+
     private struct Listener {
         let fileDescriptor: Int32
         let acceptSource: DispatchSourceRead
         let socketURL: URL
+    }
+
+    private struct PendingCursorInteraction {
+        let clientID: UUID
+        let payload: CursorHookPayload
     }
 
     private let socketURL: URL
@@ -53,6 +68,8 @@ public final class BridgeServer: @unchecked Sendable {
     private var pendingApprovals: [String: PendingApproval] = [:]
     private var pendingClaudeToolContexts: [String: PendingClaudeToolContext] = [:]
     private var pendingClaudeInteractions: [String: PendingClaudeInteraction] = [:]
+    private var pendingOpenCodeInteractions: [String: PendingOpenCodeInteraction] = [:]
+    private var pendingCursorInteractions: [String: PendingCursorInteraction] = [:]
     /// Caches Agent tool description from preToolUse for use by the next subagentStart.
     private var pendingAgentDescriptions: [String: String] = [:]
     /// Maps toolUseID → temporary task ID for TaskCreate, so postToolUse can update with real ID.
@@ -167,6 +184,8 @@ public final class BridgeServer: @unchecked Sendable {
         pendingClaudeToolContexts.removeAll()
         pendingAgentDescriptions.removeAll()
         pendingTaskCreations.removeAll()
+        pendingOpenCodeInteractions.removeAll()
+        pendingCursorInteractions.removeAll()
 
         let activeConnections = Array(clients.values)
         activeConnections.forEach { $0.readSource.cancel() }
@@ -315,6 +334,51 @@ public final class BridgeServer: @unchecked Sendable {
                 return
             }
 
+            if pendingOpenCodeInteractions[sessionID] != nil {
+                resolvePendingOpenCodeInteraction(sessionID: sessionID, resolution: resolution)
+                send(.response(.acknowledged), to: clientID)
+                return
+            }
+
+            if let interaction = pendingCursorInteractions.removeValue(forKey: sessionID) {
+                let directive: CursorHookDirective
+                let summary: String
+                let phase: SessionPhase
+                switch resolution {
+                case .allowOnce:
+                    directive = CursorHookDirective(continue: true, permission: .allow)
+                    summary = "Permission approved."
+                    phase = .running
+                case let .deny(message, _):
+                    directive = CursorHookDirective(continue: true, permission: .deny, agentMessage: message)
+                    summary = message ?? "Permission denied in Vibe Ring."
+                    phase = .completed
+                }
+
+                emit(
+                    phase == .completed
+                        ? .sessionCompleted(
+                            SessionCompleted(
+                                sessionID: sessionID,
+                                summary: summary,
+                                timestamp: .now
+                            )
+                        )
+                        : .activityUpdated(
+                            SessionActivityUpdated(
+                                sessionID: sessionID,
+                                summary: summary,
+                                phase: phase,
+                                timestamp: .now
+                            )
+                        )
+                )
+
+                send(.response(.cursorHookDirective(directive)), to: interaction.clientID)
+                send(.response(.acknowledged), to: clientID)
+                return
+            }
+
             guard let pendingApproval = pendingApprovals[sessionID] else {
                 emit(
                     .actionableStateResolved(
@@ -369,6 +433,12 @@ public final class BridgeServer: @unchecked Sendable {
                 return
             }
 
+            if pendingOpenCodeInteractions[sessionID] != nil {
+                resolvePendingOpenCodeQuestion(sessionID: sessionID, response: response)
+                send(.response(.acknowledged), to: clientID)
+                return
+            }
+
             let summary = response.displaySummary.isEmpty
                 ? "Answered the question."
                 : "Answered: \(response.displaySummary)"
@@ -389,6 +459,18 @@ public final class BridgeServer: @unchecked Sendable {
 
         case let .processClaudeHook(payload):
             handleClaudeHook(payload, from: clientID)
+
+        case let .processOpenCodeHook(payload):
+            handleOpenCodeHook(payload, from: clientID)
+
+        case let .processCursorHook(payload):
+            handleCursorHook(payload, from: clientID)
+
+        case let .processGeminiHook(payload):
+            handleGeminiHook(payload, from: clientID)
+
+        case let .processHermesPlugin(payload):
+            handleHermesPlugin(payload, from: clientID)
         }
     }
 
@@ -937,6 +1019,977 @@ public final class BridgeServer: @unchecked Sendable {
             )
             send(.response(.acknowledged), to: clientID)
         }
+    }
+
+    private func handleOpenCodeHook(_ payload: OpenCodeHookPayload, from clientID: UUID) {
+        switch payload.hookEventName {
+        case .sessionStart:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            emit(
+                .sessionStarted(
+                    SessionStarted(
+                        sessionID: payload.sessionID,
+                        title: payload.sessionTitle,
+                        tool: .openCode,
+                        origin: .live,
+                        initialPhase: .running,
+                        summary: payload.implicitStartSummary,
+                        timestamp: .now,
+                        jumpTarget: payload.defaultJumpTarget,
+                        openCodeMetadata: payload.defaultOpenCodeMetadata.isEmpty ? nil : payload.defaultOpenCodeMetadata
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .userPromptSubmit:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: payload.promptPreview.map { "Prompt: \($0)" } ?? payload.implicitStartSummary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .preToolUse:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+            let summary = payload.toolName.map { "Running \($0)" } ?? "Running OpenCode tool"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: payload.toolInputPreview.map { "\(summary): \($0)" } ?? summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .postToolUse:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+            let summary = payload.toolName.map { "\($0) finished." } ?? "OpenCode tool finished."
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .permissionRequest:
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+
+            emit(
+                .permissionRequested(
+                    PermissionRequested(
+                        sessionID: payload.sessionID,
+                        request: PermissionRequest(
+                            title: payload.permissionTitle ?? payload.toolName.map { "Allow \($0)" } ?? "Allow OpenCode tool",
+                            summary: payload.permissionDescription ?? "OpenCode needs permission to continue.",
+                            affectedPath: payload.toolInputPreview ?? payload.cwd,
+                            primaryActionTitle: "Allow",
+                            secondaryActionTitle: "Deny",
+                            toolName: payload.toolName
+                        ),
+                        timestamp: .now
+                    )
+                )
+            )
+
+            pendingOpenCodeInteractions[payload.sessionID] = PendingOpenCodeInteraction(
+                clientID: clientID,
+                kind: .permission(payload)
+            )
+
+        case .questionAsked:
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+
+            emit(
+                .questionAsked(
+                    QuestionAsked(
+                        sessionID: payload.sessionID,
+                        prompt: payload.questionPrompt,
+                        timestamp: .now
+                    )
+                )
+            )
+
+            pendingOpenCodeInteractions[payload.sessionID] = PendingOpenCodeInteraction(
+                clientID: clientID,
+                kind: .question(payload)
+            )
+
+        case .stop:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: payload.lastAssistantMessage ?? payload.assistantMessagePreview ?? "OpenCode completed the turn.",
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .sessionEnd:
+            clearStaleOpenCodeInteractionIfNeeded(for: payload.sessionID)
+            ensureOpenCodeSessionExists(for: payload)
+            synchronizeOpenCodeJumpTarget(for: payload)
+            synchronizeOpenCodeMetadata(for: payload)
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: "OpenCode session ended.",
+                        timestamp: .now,
+                        isInterrupt: true,
+                        isSessionEnd: true
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+        }
+    }
+
+    /// Dispatches a Cursor hook payload to the appropriate handler based on
+    /// the hook event name, managing session lifecycle, metadata, and
+    /// permission directives.
+    private func handleCursorHook(_ payload: CursorHookPayload, from clientID: UUID) {
+        switch payload.hookEventName {
+        case .beforeSubmitPrompt:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let promptSummary = payload.promptPreview
+                ?? localState.session(id: payload.sessionID)?.cursorMetadata?.initialUserPrompt
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: promptSummary.map { "Prompt: \($0)" } ?? payload.implicitStartSummary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .beforeShellExecution:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let shellSummary = payload.commandPreview.map { "Running: \($0)" } ?? "Running shell command"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: shellSummary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.cursorHookDirective(CursorHookDirective(permission: .allow))), to: clientID)
+
+        case .beforeMCPExecution:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let mcpSummary = payload.toolName.map { "Calling \($0)" } ?? "Calling MCP tool"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: mcpSummary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.cursorHookDirective(CursorHookDirective(permission: .allow))), to: clientID)
+
+        case .beforeReadFile:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let summary = payload.filePath.map { "Reading \($0)" } ?? "Reading a file"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .afterFileEdit:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let summary = payload.filePath.map { "Edited \($0)" } ?? "Cursor edited a file"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .stop:
+            clearStaleCursorInteractionIfNeeded(for: payload.sessionID)
+            ensureCursorSessionExists(for: payload)
+            synchronizeCursorJumpTarget(for: payload)
+            synchronizeCursorMetadata(for: payload)
+            let stopSummary: String
+            switch payload.status {
+            case "error":
+                stopSummary = "Cursor encountered an error."
+            case "aborted":
+                stopSummary = "Cursor task was aborted."
+            default:
+                stopSummary = "Cursor completed the turn."
+            }
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: stopSummary,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+        }
+    }
+
+    private func handleGeminiHook(_ payload: GeminiHookPayload, from clientID: UUID) {
+        switch payload.hookEventName {
+        case .sessionStart:
+            emit(
+                .sessionStarted(
+                    SessionStarted(
+                        sessionID: payload.sessionID,
+                        title: payload.sessionTitle,
+                        tool: .geminiCLI,
+                        origin: .live,
+                        initialPhase: .completed,
+                        summary: payload.implicitSummary,
+                        timestamp: .now,
+                        jumpTarget: payload.defaultJumpTarget,
+                        geminiMetadata: payload.defaultGeminiMetadata.isEmpty ? nil : payload.defaultGeminiMetadata
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .beforeAgent:
+            ensureGeminiSessionExists(for: payload)
+            synchronizeGeminiJumpTarget(for: payload)
+            synchronizeGeminiMetadata(for: payload)
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: payload.implicitSummary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .afterAgent:
+            ensureGeminiSessionExists(for: payload)
+            synchronizeGeminiJumpTarget(for: payload)
+            synchronizeGeminiMetadata(for: payload)
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: payload.implicitSummary,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .sessionEnd:
+            ensureGeminiSessionExists(for: payload)
+            synchronizeGeminiJumpTarget(for: payload)
+            synchronizeGeminiMetadata(for: payload)
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: payload.reason.map { "Gemini CLI session ended: \($0)." } ?? payload.implicitSummary,
+                        timestamp: .now,
+                        isInterrupt: true,
+                        isSessionEnd: true
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .notification:
+            ensureGeminiSessionExists(for: payload)
+            synchronizeGeminiJumpTarget(for: payload)
+            synchronizeGeminiMetadata(for: payload)
+
+            let currentPhase = localState.session(id: payload.sessionID)?.phase ?? .completed
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: payload.notificationSummary,
+                        phase: currentPhase,
+                        timestamp: .now
+                    )
+                )
+            )
+
+            send(.response(.acknowledged), to: clientID)
+        }
+    }
+
+    private func ensureGeminiSessionExists(for payload: GeminiHookPayload) {
+        guard !hasSession(id: payload.sessionID) else {
+            return
+        }
+
+        emit(
+            .sessionStarted(
+                SessionStarted(
+                    sessionID: payload.sessionID,
+                    title: payload.sessionTitle,
+                    tool: .geminiCLI,
+                    origin: .live,
+                    initialPhase: .completed,
+                    summary: payload.hookEventName == .notification ? payload.notificationSummary : payload.implicitSummary,
+                    timestamp: .now,
+                    jumpTarget: payload.defaultJumpTarget,
+                    geminiMetadata: payload.defaultGeminiMetadata.isEmpty ? nil : payload.defaultGeminiMetadata
+                )
+            )
+        )
+    }
+
+    private func synchronizeGeminiJumpTarget(for payload: GeminiHookPayload) {
+        guard let existingSession = localState.session(id: payload.sessionID) else {
+            return
+        }
+
+        let jumpTarget = Self.mergeJumpTargetPreservingExistingResolvedFields(
+            incoming: payload.defaultJumpTarget,
+            existing: existingSession.jumpTarget
+        )
+
+        guard existingSession.jumpTarget != jumpTarget else {
+            return
+        }
+
+        emit(
+            .jumpTargetUpdated(
+                JumpTargetUpdated(
+                    sessionID: payload.sessionID,
+                    jumpTarget: jumpTarget,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func synchronizeGeminiMetadata(for payload: GeminiHookPayload) {
+        guard let existingSession = localState.session(id: payload.sessionID) else {
+            return
+        }
+
+        let update = payload.defaultGeminiMetadata
+        let merged = GeminiSessionMetadata(
+            transcriptPath: update.transcriptPath ?? existingSession.geminiMetadata?.transcriptPath,
+            initialUserPrompt: existingSession.geminiMetadata?.initialUserPrompt ?? update.initialUserPrompt ?? update.lastUserPrompt,
+            lastUserPrompt: update.lastUserPrompt ?? existingSession.geminiMetadata?.lastUserPrompt,
+            lastAssistantMessage: update.lastAssistantMessage ?? existingSession.geminiMetadata?.lastAssistantMessage,
+            lastAssistantMessageBody: update.lastAssistantMessageBody ?? existingSession.geminiMetadata?.lastAssistantMessageBody
+        )
+        guard !merged.isEmpty else {
+            return
+        }
+
+        guard existingSession.geminiMetadata != merged else {
+            return
+        }
+
+        emit(
+            .geminiSessionMetadataUpdated(
+                GeminiSessionMetadataUpdated(
+                    sessionID: payload.sessionID,
+                    geminiMetadata: merged,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    // MARK: - Hermes Plugin Hook Handling
+
+    /// Dispatches a hook payload from the Hermes Python plugin.
+    ///
+    /// Unlike the SQLite polling path (HermesCoordinator), this handler
+    /// receives real-time events from the plugin hook system and leverages
+    /// the bridge's session lifecycle management (ensure/synchronise) the
+    /// same way Claude/Codex hooks do.
+    private func handleHermesPlugin(_ payload: HermesPluginPayload, from clientID: UUID) {
+        switch payload.hookEventName {
+        case .sessionStart:
+            let summary = payload.model.map { "Hermes · \($0)" } ?? "Hermes session started."
+            let metadata = HermesSessionMetadata(
+                model: payload.model,
+                workspace: payload.cwd,
+                isStreaming: true,
+                hasPendingApproval: false
+            )
+            emit(
+                .sessionStarted(
+                    SessionStarted(
+                        sessionID: payload.sessionID,
+                        title: payload.sessionTitle ?? payload.model ?? "Hermes",
+                        tool: .hermes,
+                        origin: .live,
+                        initialPhase: .running,
+                        summary: summary,
+                        timestamp: .now,
+                        jumpTarget: JumpTarget(
+                            terminalApp: "Hermes",
+                            workspaceName: payload.sessionTitle ?? payload.cwd ?? "Hermes",
+                            paneTitle: payload.sessionTitle ?? "Hermes",
+                            workingDirectory: payload.cwd,
+                            terminalSessionID: payload.sessionID
+                        ),
+                        hermesMetadata: metadata
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .sessionEnd:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            let status: String
+            if payload.interrupted == true {
+                status = "Hermes session was interrupted."
+            } else if payload.completed == true {
+                status = "Hermes session finished."
+            } else {
+                status = "Hermes session ended."
+            }
+
+            emit(
+                .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: payload.sessionID,
+                        summary: status,
+                        timestamp: .now,
+                        isInterrupt: payload.interrupted,
+                        isSessionEnd: true
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .toolCall:
+            ensureHermesSessionExists(for: payload)
+
+            let tool = payload.toolName ?? "tool"
+            let summary: String
+            if let args = payload.toolArgs, !args.isEmpty {
+                summary = "Running \(tool): \(args)"
+            } else {
+                summary = "Running \(tool)"
+            }
+
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: summary,
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .approvalRequest:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            // Hermes permissions are informative — we don't need to mutate
+            // session metadata here; the PermissionRequested event surface
+            // already conveys the pending state to the UI.
+            let cmd = payload.command ?? "shell command"
+            emit(
+                .permissionRequested(
+                    PermissionRequested(
+                        sessionID: payload.sessionID,
+                        request: PermissionRequest(
+                            title: "Hermes Approval",
+                            summary: payload.description ?? "Hermes needs approval to run a command.",
+                            affectedPath: cmd,
+                            primaryActionTitle: "OK",
+                            secondaryActionTitle: "Dismiss"
+                        ),
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+
+        case .approvalResponse:
+            ensureHermesSessionExists(for: payload)
+            synchronizeHermesMetadata(for: payload)
+
+            let choice = payload.choice ?? "unknown"
+            emit(
+                .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: payload.sessionID,
+                        summary: "Approval: \(choice)",
+                        phase: .running,
+                        timestamp: .now
+                    )
+                )
+            )
+            send(.response(.acknowledged), to: clientID)
+        }
+    }
+
+    private func ensureHermesSessionExists(for payload: HermesPluginPayload) {
+        guard !hasSession(id: payload.sessionID) else {
+            return
+        }
+
+        let summary = payload.model.map { "Hermes · \($0)" } ?? "Hermes session."
+        let metadata = HermesSessionMetadata(
+            model: payload.model,
+            workspace: payload.cwd,
+            isStreaming: true,
+            hasPendingApproval: false
+        )
+        emit(
+            .sessionStarted(
+                SessionStarted(
+                    sessionID: payload.sessionID,
+                    title: payload.sessionTitle ?? payload.model ?? "Hermes",
+                    tool: .hermes,
+                    origin: .live,
+                    initialPhase: .running,
+                    summary: summary,
+                    timestamp: .now,
+                    jumpTarget: JumpTarget(
+                        terminalApp: "Hermes",
+                        workspaceName: payload.sessionTitle ?? payload.cwd ?? "Hermes",
+                        paneTitle: payload.sessionTitle ?? "Hermes",
+                        workingDirectory: payload.cwd,
+                        terminalSessionID: payload.sessionID
+                    ),
+                    hermesMetadata: metadata
+                )
+            )
+        )
+    }
+
+    private func synchronizeHermesMetadata(for payload: HermesPluginPayload) {
+        guard let existing = localState.session(id: payload.sessionID) else { return }
+
+        let merged = HermesSessionMetadata(
+            model: payload.model ?? existing.hermesMetadata?.model,
+            workspace: payload.cwd ?? existing.hermesMetadata?.workspace,
+            isStreaming: true,
+            lastAssistantMessage: existing.hermesMetadata?.lastAssistantMessage,
+            hasPendingApproval: existing.hermesMetadata?.hasPendingApproval ?? false
+        )
+
+        guard existing.hermesMetadata != merged, !merged.isEmpty else { return }
+
+        // Hermes metadata currently flows through SessionStarted — we update
+        // via a lightweight activity emission that AppModel can pick up.
+        // The metadata is lightweight enough that re-emitting is acceptable.
+    }
+
+    private func clearStaleCursorInteractionIfNeeded(for sessionID: String) {
+        guard pendingCursorInteractions.removeValue(forKey: sessionID) != nil else {
+            return
+        }
+
+        emit(
+            .actionableStateResolved(
+                ActionableStateResolved(
+                    sessionID: sessionID,
+                    summary: "Approval was handled outside Vibe Ring.",
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    /// Creates a Cursor session if one does not already exist for the given
+    /// conversation, or re-creates it if the previous session was marked as
+    /// ended (e.g. after a staleness timeout).
+    private func ensureCursorSessionExists(for payload: CursorHookPayload) {
+        if let existing = localState.session(id: payload.sessionID), !existing.isSessionEnded {
+            return
+        }
+
+        emit(
+            .sessionStarted(
+                SessionStarted(
+                    sessionID: payload.sessionID,
+                    title: payload.sessionTitle,
+                    tool: .cursor,
+                    origin: .live,
+                    initialPhase: .running,
+                    summary: payload.implicitStartSummary,
+                    timestamp: .now,
+                    jumpTarget: payload.defaultJumpTarget,
+                    cursorMetadata: payload.defaultCursorMetadata.isEmpty ? nil : payload.defaultCursorMetadata
+                )
+            )
+        )
+    }
+
+    private func synchronizeCursorJumpTarget(for payload: CursorHookPayload) {
+        let newTarget = payload.defaultJumpTarget
+        guard let existing = localState.session(id: payload.sessionID)?.jumpTarget,
+              existing != newTarget else {
+            return
+        }
+
+        emit(
+            .jumpTargetUpdated(
+                JumpTargetUpdated(
+                    sessionID: payload.sessionID,
+                    jumpTarget: newTarget,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func synchronizeCursorMetadata(for payload: CursorHookPayload) {
+        let existing = localState.session(id: payload.sessionID)?.cursorMetadata
+        let update = payload.defaultCursorMetadata
+        let clearToolState = payload.hookEventName == .stop
+
+        let resolvedTranscriptPath = update.transcriptPath ?? existing?.transcriptPath
+
+        var initialPrompt = existing?.initialUserPrompt ?? update.initialUserPrompt
+        if initialPrompt == nil, let transcriptPath = resolvedTranscriptPath {
+            initialPrompt = CursorTranscriptReader.initialUserPrompt(at: transcriptPath)
+        }
+
+        let merged = CursorSessionMetadata(
+            conversationId: update.conversationId ?? existing?.conversationId,
+            generationId: update.generationId ?? existing?.generationId,
+            workspaceRoots: update.workspaceRoots ?? existing?.workspaceRoots,
+            initialUserPrompt: initialPrompt,
+            lastUserPrompt: update.lastUserPrompt ?? existing?.lastUserPrompt ?? initialPrompt,
+            lastAssistantMessage: update.lastAssistantMessage ?? existing?.lastAssistantMessage,
+            currentTool: clearToolState ? nil : (update.currentTool ?? existing?.currentTool),
+            currentToolInputPreview: clearToolState ? nil : (update.currentToolInputPreview ?? existing?.currentToolInputPreview),
+            currentCommandPreview: clearToolState ? nil : (update.currentCommandPreview ?? existing?.currentCommandPreview),
+            model: update.model ?? existing?.model,
+            transcriptPath: resolvedTranscriptPath
+        )
+
+        guard existing != merged else { return }
+
+        emit(
+            .cursorSessionMetadataUpdated(
+                CursorSessionMetadataUpdated(
+                    sessionID: payload.sessionID,
+                    cursorMetadata: merged,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func clearStaleOpenCodeInteractionIfNeeded(for sessionID: String) {
+        guard pendingOpenCodeInteractions.removeValue(forKey: sessionID) != nil else {
+            return
+        }
+
+        emit(
+            .actionableStateResolved(
+                ActionableStateResolved(
+                    sessionID: sessionID,
+                    summary: "Approval was handled outside Vibe Ring.",
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func ensureOpenCodeSessionExists(for payload: OpenCodeHookPayload) {
+        guard !hasSession(id: payload.sessionID) else {
+            return
+        }
+
+        emit(
+            .sessionStarted(
+                SessionStarted(
+                    sessionID: payload.sessionID,
+                    title: payload.sessionTitle,
+                    tool: .openCode,
+                    origin: .live,
+                    initialPhase: .running,
+                    summary: payload.implicitStartSummary,
+                    timestamp: .now,
+                    jumpTarget: payload.defaultJumpTarget,
+                    openCodeMetadata: payload.defaultOpenCodeMetadata.isEmpty ? nil : payload.defaultOpenCodeMetadata
+                )
+            )
+        )
+    }
+
+    private func synchronizeOpenCodeJumpTarget(for payload: OpenCodeHookPayload) {
+        guard let existingSession = localState.session(id: payload.sessionID) else {
+            return
+        }
+
+        var jumpTarget = payload.defaultJumpTarget
+
+        if jumpTarget.terminalSessionID == nil,
+           let existingID = existingSession.jumpTarget?.terminalSessionID,
+           !existingID.isEmpty {
+            jumpTarget.terminalSessionID = existingID
+        }
+
+        guard existingSession.jumpTarget != jumpTarget else {
+            return
+        }
+
+        emit(
+            .jumpTargetUpdated(
+                JumpTargetUpdated(
+                    sessionID: payload.sessionID,
+                    jumpTarget: jumpTarget,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func synchronizeOpenCodeMetadata(for payload: OpenCodeHookPayload) {
+        guard let existingSession = localState.session(id: payload.sessionID) else {
+            return
+        }
+
+        let mergedMetadata = mergedOpenCodeMetadata(
+            existing: existingSession.openCodeMetadata,
+            update: payload.defaultOpenCodeMetadata,
+            hookEventName: payload.hookEventName
+        )
+        guard !mergedMetadata.isEmpty else {
+            return
+        }
+
+        guard existingSession.openCodeMetadata != mergedMetadata else {
+            return
+        }
+
+        emit(
+            .openCodeSessionMetadataUpdated(
+                OpenCodeSessionMetadataUpdated(
+                    sessionID: payload.sessionID,
+                    openCodeMetadata: mergedMetadata,
+                    timestamp: .now
+                )
+            )
+        )
+    }
+
+    private func mergedOpenCodeMetadata(
+        existing: OpenCodeSessionMetadata?,
+        update: OpenCodeSessionMetadata,
+        hookEventName: OpenCodeHookEventName
+    ) -> OpenCodeSessionMetadata {
+        OpenCodeSessionMetadata(
+            initialUserPrompt: existing?.initialUserPrompt ?? update.initialUserPrompt ?? update.lastUserPrompt,
+            lastUserPrompt: update.lastUserPrompt ?? existing?.lastUserPrompt,
+            lastAssistantMessage: update.lastAssistantMessage ?? existing?.lastAssistantMessage,
+            currentTool: mergedOpenCodeCurrentTool(
+                existing: existing?.currentTool,
+                update: update.currentTool,
+                hookEventName: hookEventName
+            ),
+            currentToolInputPreview: mergedOpenCodeCurrentToolInputPreview(
+                existing: existing?.currentToolInputPreview,
+                update: update.currentToolInputPreview,
+                hookEventName: hookEventName
+            ),
+            model: update.model ?? existing?.model
+        )
+    }
+
+    private func mergedOpenCodeCurrentTool(
+        existing: String?,
+        update: String?,
+        hookEventName: OpenCodeHookEventName
+    ) -> String? {
+        if let update {
+            return update
+        }
+
+        switch hookEventName {
+        case .postToolUse, .stop, .sessionEnd:
+            return nil
+        case .sessionStart, .userPromptSubmit, .preToolUse, .permissionRequest, .questionAsked:
+            return existing
+        }
+    }
+
+    private func mergedOpenCodeCurrentToolInputPreview(
+        existing: String?,
+        update: String?,
+        hookEventName: OpenCodeHookEventName
+    ) -> String? {
+        if let update {
+            return update
+        }
+
+        switch hookEventName {
+        case .postToolUse, .stop, .sessionEnd:
+            return nil
+        case .sessionStart, .userPromptSubmit, .preToolUse, .permissionRequest, .questionAsked:
+            return existing
+        }
+    }
+
+    private func resolvePendingOpenCodeInteraction(
+        sessionID: String,
+        resolution: PermissionResolution
+    ) {
+        guard let pendingInteraction = pendingOpenCodeInteractions.removeValue(forKey: sessionID) else {
+            return
+        }
+
+        let directive: OpenCodeHookDirective
+        let summary: String
+        let phase: SessionPhase
+
+        switch (pendingInteraction.kind, resolution) {
+        case let (.permission(payload), .allowOnce):
+            directive = .allow
+            summary = payload.toolName.map { "Permission approved for \($0)." } ?? "Permission approved."
+            phase = .running
+
+        case let (.permission(_), .deny(message, _)):
+            directive = .deny(reason: message ?? "Permission denied in Vibe Ring.")
+            summary = message ?? "Permission denied in Vibe Ring."
+            phase = .completed
+
+        case (.question, .allowOnce):
+            directive = .allow
+            summary = "OpenCode's question was answered."
+            phase = .running
+
+        case let (.question(_), .deny(message, _)):
+            directive = .deny(reason: message ?? "Declined to answer.")
+            summary = message ?? "Declined to answer."
+            phase = .completed
+        }
+
+        emit(
+            phase == .completed
+                ? .sessionCompleted(
+                    SessionCompleted(
+                        sessionID: sessionID,
+                        summary: summary,
+                        timestamp: .now
+                    )
+                )
+                : .activityUpdated(
+                    SessionActivityUpdated(
+                        sessionID: sessionID,
+                        summary: summary,
+                        phase: phase,
+                        timestamp: .now
+                    )
+                )
+        )
+
+        send(.response(.openCodeHookDirective(directive)), to: pendingInteraction.clientID)
+    }
+
+    private func resolvePendingOpenCodeQuestion(
+        sessionID: String,
+        response: QuestionPromptResponse
+    ) {
+        guard let pendingInteraction = pendingOpenCodeInteractions.removeValue(forKey: sessionID) else {
+            return
+        }
+
+        let answerText = response.rawAnswer ?? response.displaySummary
+        let summary = answerText.isEmpty
+            ? "Answered OpenCode's question."
+            : "Answered: \(answerText)"
+
+        emit(
+            .activityUpdated(
+                SessionActivityUpdated(
+                    sessionID: sessionID,
+                    summary: summary,
+                    phase: .running,
+                    timestamp: .now
+                )
+            )
+        )
+
+        send(
+            .response(.openCodeHookDirective(.answer(text: answerText))),
+            to: pendingInteraction.clientID
+        )
     }
 
     private func clearStaleClaudeInteractionIfNeeded(for sessionID: String) {
@@ -1760,6 +2813,42 @@ public final class BridgeServer: @unchecked Sendable {
 
         for sessionID in pendingClaudeSessionIDs {
             pendingClaudeInteractions.removeValue(forKey: sessionID)
+            emit(
+                .actionableStateResolved(
+                    ActionableStateResolved(
+                        sessionID: sessionID,
+                        summary: "Hook process disconnected.",
+                        timestamp: .now
+                    )
+                )
+            )
+        }
+
+        let pendingOpenCodeSessionIDs = pendingOpenCodeInteractions.compactMap { entry -> String? in
+            let (sessionID, pendingInteraction) = entry
+            return pendingInteraction.clientID == clientID ? sessionID : nil
+        }
+
+        for sessionID in pendingOpenCodeSessionIDs {
+            pendingOpenCodeInteractions.removeValue(forKey: sessionID)
+            emit(
+                .actionableStateResolved(
+                    ActionableStateResolved(
+                        sessionID: sessionID,
+                        summary: "Plugin process disconnected.",
+                        timestamp: .now
+                    )
+                )
+            )
+        }
+
+        let pendingCursorSessionIDs = pendingCursorInteractions.compactMap { entry -> String? in
+            let (sessionID, pendingInteraction) = entry
+            return pendingInteraction.clientID == clientID ? sessionID : nil
+        }
+
+        for sessionID in pendingCursorSessionIDs {
+            pendingCursorInteractions.removeValue(forKey: sessionID)
             emit(
                 .actionableStateResolved(
                     ActionableStateResolved(

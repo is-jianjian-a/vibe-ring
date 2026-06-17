@@ -29,10 +29,6 @@ final class ProcessMonitoringCoordinator {
     @ObservationIgnored
     var onCodexAppRunningChanged: ((_ isRunning: Bool) -> Void)?
 
-    /// Fires when Hermes is detected as running / no longer running.
-    @ObservationIgnored
-    var onHermesRunningChanged: ((_ isRunning: Bool) -> Void)?
-
     @ObservationIgnored
     let activeAgentProcessDiscovery = ActiveAgentProcessDiscovery()
 
@@ -49,11 +45,9 @@ final class ProcessMonitoringCoordinator {
     private var wasCodexAppRunning = false
 
     @ObservationIgnored
-    private var wasHermesRunning = false
-
-    @ObservationIgnored
     private var immediateReconciliationTask: Task<Void, Never>?
 
+    private static let cursorStalenessTimeout: TimeInterval = 600  // 10 minutes
 
     private var state: SessionState {
         get { stateAccessor?() ?? SessionState() }
@@ -164,11 +158,6 @@ final class ProcessMonitoringCoordinator {
         if isCodexAppRunning != wasCodexAppRunning {
             wasCodexAppRunning = isCodexAppRunning
             onCodexAppRunningChanged?(isCodexAppRunning)
-        }
-        let isHermesRunning = activeProcesses.contains { $0.tool == .hermes }
-        if isHermesRunning != wasHermesRunning {
-            wasHermesRunning = isHermesRunning
-            onHermesRunningChanged?(isHermesRunning)
         }
         let sessions = local.sessions.filter(\.isTrackedLiveSession)
         guard !sessions.isEmpty else {
@@ -289,6 +278,12 @@ final class ProcessMonitoringCoordinator {
             payload.sessionID
         case let .claudeSessionMetadataUpdated(payload):
             payload.sessionID
+        case let .geminiSessionMetadataUpdated(payload):
+            payload.sessionID
+        case let .openCodeSessionMetadataUpdated(payload):
+            payload.sessionID
+        case let .cursorSessionMetadataUpdated(payload):
+            payload.sessionID
         case let .actionableStateResolved(payload):
             payload.sessionID
         }
@@ -298,7 +293,7 @@ final class ProcessMonitoringCoordinator {
 
     /// Returns the set of session IDs whose backing agent process is still
     /// alive, based on ``ActiveProcessSnapshot`` matching and per-tool
-    /// heuristics (e.g. bundle-ID liveness for Codex.app, PID matching for
+    /// heuristics (e.g. bundle-ID liveness for Cursor, PID matching for
     /// Codex/Claude/Gemini).
     func sessionIDsWithAliveProcesses(
         activeProcesses: [ActiveProcessSnapshot]
@@ -359,13 +354,90 @@ final class ProcessMonitoringCoordinator {
             claimedSessionIDs.insert(matched.id)
         }
 
-        // Hermes sessions: Hermes is a web application — we cannot match
-        // individual session IDs from ps/lsof.  Keep Hermes sessions alive
-        // while any Hermes process is running.
-        let hasHermesProcess = activeProcesses.contains { $0.tool == .hermes }
-        if hasHermesProcess {
-            for session in sessions where session.tool == .hermes && !session.isDemoSession {
+        // OpenCode sessions are hook-managed, but OpenCode does not expose a stable
+        // session ID through process discovery. Match each active OpenCode process
+        // to at most one tracked session.
+        let openCodeProcesses = activeProcesses.filter { $0.tool == .openCode }
+        // Do not filter by `isHookManaged` here because restored sessions drop that flag.
+        let trackedOpenCodeSessions = sessions.filter { $0.tool == .openCode && !$0.isDemoSession }
+        var claimedOpenCodeSessionIDs: Set<String> = []
+        var hasUnmatchedOpenCodeProcess = false
+
+        for process in openCodeProcesses {
+            let matchResult = uniqueTrackedOpenCodeSession(
+                for: process,
+                sessions: trackedOpenCodeSessions,
+                claimedSessionIDs: claimedOpenCodeSessionIDs
+            )
+            switch matchResult {
+            case .matched(let matched):
+                aliveIDs.insert(matched.id)
+                claimedOpenCodeSessionIDs.insert(matched.id)
+            case .ambiguous:
+                hasUnmatchedOpenCodeProcess = true
+            case .rejectedConflict:
+                break
+            }
+        }
+
+        // Fallback: If there are active OpenCode processes that we couldn't uniquely
+        // match, keep all remaining unclaimed OpenCode sessions alive to prevent
+        // incorrectly marking them as ended.
+        if hasUnmatchedOpenCodeProcess {
+            for session in trackedOpenCodeSessions where !claimedOpenCodeSessionIDs.contains(session.id) {
                 aliveIDs.insert(session.id)
+            }
+        }
+
+        // Gemini sessions are hook-managed, but Gemini does not expose a stable
+        // session ID through process discovery. Match each active Gemini process
+        // to at most one tracked session, preferring the freshest transcript in
+        // the same workspace while still keeping idle transcripts alive as long
+        // as the Gemini CLI process remains running.
+        let geminiProcesses = activeProcesses.filter { $0.tool == .geminiCLI }
+        let trackedGeminiSessions = sessions.filter { $0.tool == .geminiCLI && !$0.isDemoSession }
+        var claimedGeminiSessionIDs: Set<String> = []
+        for process in geminiProcesses {
+            guard let matched = uniqueTrackedGeminiSession(
+                for: process,
+                sessions: trackedGeminiSessions,
+                claimedSessionIDs: claimedGeminiSessionIDs
+            ) else {
+                continue
+            }
+            aliveIDs.insert(matched.id)
+            claimedGeminiSessionIDs.insert(matched.id)
+        }
+
+        // Kimi sessions are hook-managed and use UUIDs that Vibe Ring cannot
+        // recover from ps/lsof. As long as any kimi process exists, keep every
+        // tracked Kimi session alive so Stop/completed sessions don't get
+        // evicted by the hook-managed liveness fallback in
+        // SessionState.markProcessLiveness.
+        let hasKimiProcess = activeProcesses.contains { $0.tool == .kimiCLI }
+        if hasKimiProcess {
+            for session in sessions where session.tool == .kimiCLI && !session.isDemoSession {
+                aliveIDs.insert(session.id)
+            }
+        }
+
+        // Cursor sessions: Cursor is an Electron IDE — we cannot match
+        // individual session IDs from ps/lsof.  Keep Cursor sessions alive
+        // while Cursor.app is running, but let completed sessions expire
+        // after a staleness window so the notch clears when the user is
+        // no longer interacting with the conversation.  Cursor has no
+        // "tab closed" hook, so this timeout is the best available proxy.
+        let isCursorRunning = !NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.todesktop.230313mzl4w4u92"
+        ).isEmpty
+        if isCursorRunning {
+            for session in sessions where session.tool == .cursor && !session.isDemoSession {
+                if session.isSessionEnded { continue }
+                let isStale = session.phase == .completed
+                    && session.updatedAt.addingTimeInterval(Self.cursorStalenessTimeout) < Date.now
+                if !isStale {
+                    aliveIDs.insert(session.id)
+                }
             }
         }
 
@@ -376,6 +448,111 @@ final class ProcessMonitoringCoordinator {
         }
 
         return aliveIDs
+    }
+
+    private enum OpenCodeMatchResult {
+        case matched(AgentSession)
+        case ambiguous
+        case rejectedConflict
+    }
+
+    private func uniqueTrackedOpenCodeSession(
+        for process: ActiveProcessSnapshot,
+        sessions: [AgentSession],
+        claimedSessionIDs: Set<String>
+    ) -> OpenCodeMatchResult {
+        let unclaimedSessions = sessions.filter { !claimedSessionIDs.contains($0.id) }
+        guard !unclaimedSessions.isEmpty else {
+            return .ambiguous
+        }
+
+        if let terminalTTY = normalizedTTYForMatching(process.terminalTTY) {
+            let candidates = unclaimedSessions.filter {
+                normalizedTTYForMatching($0.jumpTarget?.terminalTTY) == terminalTTY
+            }
+            if candidates.count == 1 {
+                let candidate = candidates[0]
+                if let processCWD = normalizedPathForMatching(process.workingDirectory),
+                   let sessionCWD = normalizedPathForMatching(candidate.jumpTarget?.workingDirectory),
+                   processCWD != sessionCWD {
+                    // TTY matched, but CWD explicitly differs (e.g., terminal tab was reused in another directory).
+                    return .rejectedConflict
+                }
+                return .matched(candidate)
+            }
+            if !candidates.isEmpty {
+                if let processCWD = normalizedPathForMatching(process.workingDirectory) {
+                    let cwdCandidates = candidates.filter {
+                        normalizedPathForMatching($0.jumpTarget?.workingDirectory) == processCWD
+                    }
+                    if cwdCandidates.count == 1 {
+                        return .matched(cwdCandidates[0])
+                    }
+                }
+                return .ambiguous
+            }
+        }
+
+        if let processCWD = normalizedPathForMatching(process.workingDirectory) {
+            let workspaceMatches = unclaimedSessions.filter {
+                normalizedPathForMatching($0.jumpTarget?.workingDirectory) == processCWD
+            }
+            if workspaceMatches.count == 1 {
+                return .matched(workspaceMatches[0])
+            }
+        }
+
+        // We require at least a positive match on TTY or CWD.
+        // Do not blindly link the process just because only one session remains.
+        return .ambiguous
+    }
+
+    private func uniqueTrackedGeminiSession(
+        for process: ActiveProcessSnapshot,
+        sessions: [AgentSession],
+        claimedSessionIDs: Set<String>
+    ) -> AgentSession? {
+        let unclaimedSessions = sessions.filter { !claimedSessionIDs.contains($0.id) }
+        guard !unclaimedSessions.isEmpty else {
+            return nil
+        }
+
+        if let transcriptPath = process.transcriptPath,
+           let transcriptMatched = unclaimedSessions.first(where: { $0.geminiMetadata?.transcriptPath == transcriptPath }) {
+            return transcriptMatched
+        }
+
+        if let processWorkingDirectory = process.workingDirectory {
+            let workspaceMatches = unclaimedSessions.filter {
+                $0.jumpTarget?.workingDirectory == processWorkingDirectory
+            }
+            if !workspaceMatches.isEmpty {
+                return preferredGeminiSession(from: workspaceMatches)
+            }
+            return nil
+        }
+
+        return unclaimedSessions.count == 1 ? unclaimedSessions[0] : nil
+    }
+
+    private func preferredGeminiSession(from sessions: [AgentSession]) -> AgentSession? {
+        sessions.max { lhs, rhs in
+            let lhsDate = modificationDate(atPath: lhs.geminiMetadata?.transcriptPath) ?? .distantPast
+            let rhsDate = modificationDate(atPath: rhs.geminiMetadata?.transcriptPath) ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.updatedAt < rhs.updatedAt
+            }
+            return lhsDate < rhsDate
+        }
+    }
+
+    private func modificationDate(atPath path: String?) -> Date? {
+        guard let path, !path.isEmpty else {
+            return nil
+        }
+
+        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        return attributes?[.modificationDate] as? Date
     }
 
     // MARK: - Synthetic Claude sessions
@@ -801,6 +978,36 @@ final class ProcessMonitoringCoordinator {
             return "WezTerm"
         case "zellij":
             return "Zellij"
+        // VS Code family
+        case "vscode", "code", "visual studio code":
+            return "VS Code"
+        case "vscode-insiders", "code-insiders":
+            return "VS Code Insiders"
+        case "cursor":
+            return "Cursor"
+        case "windsurf":
+            return "Windsurf"
+        case "trae":
+            return "Trae"
+        // JetBrains family
+        case "intellij", "idea":
+            return "IntelliJ IDEA"
+        case "webstorm":
+            return "WebStorm"
+        case "pycharm":
+            return "PyCharm"
+        case "goland":
+            return "GoLand"
+        case "clion":
+            return "CLion"
+        case "rubymine":
+            return "RubyMine"
+        case "phpstorm":
+            return "PhpStorm"
+        case "rider":
+            return "Rider"
+        case "rustrover":
+            return "RustRover"
         default:
             return nil
         }
@@ -825,6 +1032,22 @@ final class ProcessMonitoringCoordinator {
             return "Codex \(session.id.prefix(8))"
         case .claudeCode:
             return "Claude \(session.id.prefix(8))"
+        case .geminiCLI:
+            return "Gemini \(session.id.prefix(8))"
+        case .openCode:
+            return "OpenCode \(session.id.prefix(8))"
+        case .qoder:
+            return "Qoder \(session.id.prefix(8))"
+        case .qwenCode:
+            return "Qwen Code \(session.id.prefix(8))"
+        case .factory:
+            return "Factory \(session.id.prefix(8))"
+        case .codebuddy:
+            return "CodeBuddy \(session.id.prefix(8))"
+        case .cursor:
+            return "Cursor \(session.id.prefix(8))"
+        case .kimiCLI:
+            return "Kimi \(session.id.prefix(8))"
         case .hermes:
             return "Hermes \(session.id.prefix(8))"
         }

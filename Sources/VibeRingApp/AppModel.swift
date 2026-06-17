@@ -67,7 +67,6 @@ final class AppModel {
     let discovery = SessionDiscoveryCoordinator()
     let monitoring = ProcessMonitoringCoordinator()
     let codexAppServer = CodexAppServerCoordinator()
-    let hermes = HermesCoordinator()
     let updateChecker = UpdateChecker()
 
     var notchStatus: NotchStatus {
@@ -95,6 +94,21 @@ final class AppModel {
     var hooksBinaryURL: URL? { hooks.hooksBinaryURL }
     var codexHooksInstalled: Bool { hooks.codexHooksInstalled }
     var claudeHooksInstalled: Bool { hooks.claudeHooksInstalled }
+    var hermesPluginInstalled: Bool { hooks.hermesPluginInstalled }
+    var isHermesPluginSetupBusy: Bool { hooks.isHermesPluginSetupBusy }
+    var qoderHooksInstalled: Bool { hooks.qoderHooksInstalled }
+    var qwenCodeHooksInstalled: Bool { hooks.qwenCodeHooksInstalled }
+    var factoryHooksInstalled: Bool { hooks.factoryHooksInstalled }
+    var codebuddyHooksInstalled: Bool { hooks.codebuddyHooksInstalled }
+    var qoderHookStatus: ClaudeHookInstallationStatus? { hooks.qoderHookStatus }
+    var qwenCodeHookStatus: ClaudeHookInstallationStatus? { hooks.qwenCodeHookStatus }
+    var factoryHookStatus: ClaudeHookInstallationStatus? { hooks.factoryHookStatus }
+    var codebuddyHookStatus: ClaudeHookInstallationStatus? { hooks.codebuddyHookStatus }
+    var isQoderHookSetupBusy: Bool { hooks.isQoderHookSetupBusy }
+    var isQwenCodeHookSetupBusy: Bool { hooks.isQwenCodeHookSetupBusy }
+    var isFactoryHookSetupBusy: Bool { hooks.isFactoryHookSetupBusy }
+    var isCodebuddyHookSetupBusy: Bool { hooks.isCodebuddyHookSetupBusy }
+    var openCodePluginInstalled: Bool { hooks.openCodePluginInstalled }
     var claudeUsageInstalled: Bool { hooks.claudeUsageInstalled }
     var claudeHookStatusTitle: String { hooks.claudeHookStatusTitle }
     var claudeHookStatusSummary: String { hooks.claudeHookStatusSummary }
@@ -104,9 +118,29 @@ final class AppModel {
     var codexUsageStatusTitle: String { hooks.codexUsageStatusTitle }
     var codexUsageStatusSummary: String { hooks.codexUsageStatusSummary }
     var codexUsageSummaryText: String? { hooks.codexUsageSummaryText }
-    var codexHealthReport: HookHealthReport? { hooks.codexHealthReport }
+    var openCodePluginStatus: OpenCodePluginInstallationStatus? { hooks.openCodePluginStatus }
+    var isOpenCodeSetupBusy: Bool { hooks.isOpenCodeSetupBusy }
+    var openCodePluginStatusTitle: String { hooks.openCodePluginStatusTitle }
+    var openCodePluginStatusSummary: String { hooks.openCodePluginStatusSummary }
     var claudeHealthReport: HookHealthReport? { hooks.claudeHealthReport }
+    var codexHealthReport: HookHealthReport? { hooks.codexHealthReport }
+    var cursorHooksInstalled: Bool { hooks.cursorHooksInstalled }
+    var isCursorHookSetupBusy: Bool { hooks.isCursorHookSetupBusy }
+    var cursorHookStatus: CursorHookInstallationStatus? { hooks.cursorHookStatus }
+    var cursorHookStatusTitle: String { hooks.cursorHookStatusTitle }
+    var cursorHookStatusSummary: String { hooks.cursorHookStatusSummary }
+    var geminiHooksInstalled: Bool { hooks.geminiHooksInstalled }
+    var isGeminiHookSetupBusy: Bool { hooks.isGeminiHookSetupBusy }
+    var geminiHookStatus: GeminiHookInstallationStatus? { hooks.geminiHookStatus }
+    var geminiHookStatusTitle: String { hooks.geminiHookStatusTitle }
+    var geminiHookStatusSummary: String { hooks.geminiHookStatusSummary }
+    var kimiHooksInstalled: Bool { hooks.kimiHooksInstalled }
+    var isKimiHookSetupBusy: Bool { hooks.isKimiHookSetupBusy }
+    var kimiHookStatus: KimiHookInstallationStatus? { hooks.kimiHookStatus }
+    var kimiHookStatusTitle: String { hooks.kimiHookStatusTitle }
+    var kimiHookStatusSummary: String { hooks.kimiHookStatusSummary }
     var codexHookStatusTitle: String { hooks.codexHookStatusTitle }
+    var codexHookStatusSummary: String { hooks.codexHookStatusSummary }
 
     /// Mirrors `AgentIntentStore.firstLaunchCompleted`. Onboarding sets this
     /// to true after the user completes (or explicitly skips) the flow;
@@ -123,6 +157,15 @@ final class AppModel {
     var hasAnyInstalledAgent: Bool {
         hooks.claudeHooksInstalled
             || hooks.codexHooksInstalled
+            || hooks.cursorHooksInstalled
+            || hooks.qoderHooksInstalled
+            || hooks.qwenCodeHooksInstalled
+            || hooks.factoryHooksInstalled
+            || hooks.codebuddyHooksInstalled
+            || hooks.openCodePluginInstalled
+            || hooks.geminiHooksInstalled
+            || hooks.kimiHooksInstalled
+            || hooks.hermesPluginInstalled
     }
     func refreshCodexHookStatus() { hooks.refreshCodexHookStatus() }
 
@@ -133,12 +176,36 @@ final class AppModel {
     }
 
     func refreshClaudeHookStatus() { hooks.refreshClaudeHookStatus() }
+    func refreshOpenCodePluginStatus() { hooks.refreshOpenCodePluginStatus() }
+    func refreshCursorHookStatus() { hooks.refreshCursorHookStatus() }
     func refreshClaudeUsageState() { hooks.refreshClaudeUsageState() }
     func refreshCodexUsageState() { hooks.refreshCodexUsageState() }
+    func refreshHermesPluginStatus() { hooks.refreshHermesPluginStatus() }
     func installCodexHooks() { hooks.installCodexHooks() }
     func uninstallCodexHooks() { hooks.uninstallCodexHooks() }
     func installClaudeHooks() { hooks.installClaudeHooks() }
     func uninstallClaudeHooks() { hooks.uninstallClaudeHooks() }
+    func installHermesPlugin() { hooks.installHermesPlugin() }
+    func uninstallHermesPlugin() { hooks.uninstallHermesPlugin() }
+    func installQoderHooks() { hooks.installQoderHooks() }
+    func uninstallQoderHooks() { hooks.uninstallQoderHooks() }
+    func installQwenCodeHooks() { hooks.installQwenCodeHooks() }
+    func uninstallQwenCodeHooks() { hooks.uninstallQwenCodeHooks() }
+    func installFactoryHooks() { hooks.installFactoryHooks() }
+    func uninstallFactoryHooks() { hooks.uninstallFactoryHooks() }
+    func installCodebuddyHooks() { hooks.installCodebuddyHooks() }
+    func uninstallCodebuddyHooks() { hooks.uninstallCodebuddyHooks() }
+    func refreshCCForkHookStatuses() { hooks.refreshCCForkHookStatuses() }
+    func installOpenCodePlugin() { hooks.installOpenCodePlugin() }
+    func uninstallOpenCodePlugin() { hooks.uninstallOpenCodePlugin() }
+    func installCursorHooks() { hooks.installCursorHooks() }
+    func uninstallCursorHooks() { hooks.uninstallCursorHooks() }
+    func refreshGeminiHookStatus() { hooks.refreshGeminiHookStatus() }
+    func installGeminiHooks() { hooks.installGeminiHooks() }
+    func uninstallGeminiHooks() { hooks.uninstallGeminiHooks() }
+    func refreshKimiHookStatus() { hooks.refreshKimiHookStatus() }
+    func installKimiHooks() { hooks.installKimiHooks() }
+    func uninstallKimiHooks() { hooks.uninstallKimiHooks() }
     func installClaudeUsageBridge() { hooks.installClaudeUsageBridge() }
     func uninstallClaudeUsageBridge() { hooks.uninstallClaudeUsageBridge() }
     func updateClaudeConfigDirectory(to newDirectory: URL?) { hooks.updateClaudeConfigDirectory(to: newDirectory) }
@@ -254,12 +321,6 @@ final class AppModel {
     var overlayDisplaySelectionID: String {
         get { overlay.overlayDisplaySelectionID }
         set { overlay.overlayDisplaySelectionID = newValue }
-    }
-
-    /// 固定展开面板 — 不自动收起
-    var pinPanelOpen: Bool {
-        get { overlay.pinPanelOpen }
-        set { overlay.pinPanelOpen = newValue }
     }
 
     // MARK: - Appearance
@@ -406,8 +467,7 @@ final class AppModel {
 
     /// Number of currently connected iPhone SSE clients.
     var watchConnectedDevices: Int {
-        // Placeholder — endpoint doesn't expose count yet
-        0
+        watchRelay?.endpoint.connectedDeviceCount ?? 0
     }
 
     private func startWatchRelay() {
@@ -618,16 +678,6 @@ final class AppModel {
             self?.state.session(id: id) != nil
         }
 
-        hermes.onEvent = { [weak self] event in
-            self?.applyTrackedEvent(event, ingress: .bridge)
-        }
-        hermes.onStatusMessage = { [weak self] message in
-            self?.lastActionMessage = message
-        }
-        hermes.isSessionTracked = { [weak self] id in
-            self?.state.session(id: id) != nil
-        }
-
         monitoring.syntheticClaudeSessionPrefix = Self.syntheticClaudeSessionPrefix
         monitoring.stateAccessor = { [weak self] in self?.state ?? SessionState() }
         monitoring.stateUpdater = { [weak self] in self?.state = $0 }
@@ -638,6 +688,8 @@ final class AppModel {
         monitoring.onPersistenceNeeded = { [weak self] in
             self?.discovery.scheduleCodexSessionPersistence()
             self?.discovery.scheduleClaudeSessionPersistence()
+            self?.discovery.scheduleOpenCodeSessionPersistence()
+            self?.discovery.scheduleCursorSessionPersistence()
         }
         monitoring.onCodexAppRunningChanged = { [weak self] isRunning in
             guard let self else { return }
@@ -645,14 +697,6 @@ final class AppModel {
                 self.codexAppServer.ensureConnected()
             } else {
                 self.codexAppServer.disconnect()
-            }
-        }
-        monitoring.onHermesRunningChanged = { [weak self] isRunning in
-            guard let self else { return }
-            if isRunning {
-                self.hermes.ensureConnected()
-            } else {
-                self.hermes.disconnect()
             }
         }
         refreshOverlayDisplayConfiguration()
@@ -1039,6 +1083,9 @@ final class AppModel {
             // These are already async or lightweight — safe to start immediately.
             hooks.refreshCodexHookStatus()
             hooks.refreshClaudeHookStatus()
+            hooks.refreshCCForkHookStatuses()
+            hooks.refreshOpenCodePluginStatus()
+            hooks.refreshCursorHookStatus()
             hooks.refreshClaudeUsageState()
             hooks.startClaudeUsageMonitoringIfNeeded()
             if showCodexUsage {
@@ -1206,6 +1253,11 @@ final class AppModel {
         if let opener = openSettingsWindow {
             opener()
         } else {
+            // First-launch fallback: SwiftUI's `openWindow` closure is registered
+            // by `SettingsWindowContent.onAppear`, which doesn't fire until the
+            // settings window renders the first time. Send the standard
+            // `showSettingsWindow:` responder action (macOS 13+) so it fires
+            // the `CommandGroup(.appSettings)` button that opens the window.
             NSApp.sendAction(NSSelectorFromString("showSettingsWindow:"), to: nil, from: nil)
         }
         if let window = NSApp.windows.first(where: { $0.title == "Vibe Ring Settings" }) {
@@ -1457,6 +1509,8 @@ final class AppModel {
         refreshOverlayPlacementIfVisible()
         discovery.scheduleCodexSessionPersistence()
         discovery.scheduleClaudeSessionPersistence()
+        discovery.scheduleOpenCodeSessionPersistence()
+        discovery.scheduleCursorSessionPersistence()
 
         // Push relevant events to the Watch/iPhone via the relay
         if let relay = watchRelay {
@@ -1470,6 +1524,9 @@ final class AppModel {
                 case let .jumpTargetUpdated(p): return p.sessionID
                 case let .sessionMetadataUpdated(p): return p.sessionID
                 case let .claudeSessionMetadataUpdated(p): return p.sessionID
+                case let .geminiSessionMetadataUpdated(p): return p.sessionID
+                case let .openCodeSessionMetadataUpdated(p): return p.sessionID
+                case let .cursorSessionMetadataUpdated(p): return p.sessionID
                 case let .actionableStateResolved(p): return p.sessionID
                 }
             }()
@@ -1584,6 +1641,15 @@ final class AppModel {
                 // that fixes #324.
                 if self.hooks.shouldAutoInstall(.claudeCode) { self.installClaudeHooks() }
                 if self.hooks.shouldAutoInstall(.codex) { self.installCodexHooks() }
+                if self.hooks.shouldAutoInstall(.qoder) { self.installQoderHooks() }
+                if self.hooks.shouldAutoInstall(.qwenCode) { self.installQwenCodeHooks() }
+                if self.hooks.shouldAutoInstall(.factory) { self.installFactoryHooks() }
+                if self.hooks.shouldAutoInstall(.codebuddy) { self.installCodebuddyHooks() }
+                if self.hooks.shouldAutoInstall(.openCode) { self.installOpenCodePlugin() }
+                if self.hooks.shouldAutoInstall(.cursor) { self.installCursorHooks() }
+                if self.hooks.shouldAutoInstall(.gemini) { self.installGeminiHooks() }
+                if self.hooks.shouldAutoInstall(.kimi) { self.installKimiHooks() }
+                if self.hooks.shouldAutoInstall(.hermes) { self.installHermesPlugin() }
                 if self.hooks.shouldAutoInstall(.claudeUsageBridge) { self.installClaudeUsageBridge() }
 
                 // Run health checks after install to detect stale paths, conflicts, etc.
@@ -1725,6 +1791,20 @@ final class AppModel {
             }
 
             return payload.claudeMetadata.lastAssistantMessage ?? "Claude session metadata updated."
+        case let .geminiSessionMetadataUpdated(payload):
+            return payload.geminiMetadata.lastAssistantMessage ?? "Gemini session metadata updated."
+        case let .openCodeSessionMetadataUpdated(payload):
+            if let currentTool = payload.openCodeMetadata.currentTool {
+                return "OpenCode is running \(currentTool)."
+            }
+
+            return payload.openCodeMetadata.lastAssistantMessage ?? "OpenCode session metadata updated."
+        case let .cursorSessionMetadataUpdated(payload):
+            if let currentTool = payload.cursorMetadata.currentTool {
+                return "Cursor is running \(currentTool)."
+            }
+
+            return payload.cursorMetadata.lastAssistantMessage ?? "Cursor session metadata updated."
         case let .actionableStateResolved(payload):
             return "Actionable state resolved for session \(payload.sessionID)."
         }

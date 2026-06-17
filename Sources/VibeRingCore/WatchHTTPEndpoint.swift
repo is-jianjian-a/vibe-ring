@@ -100,6 +100,16 @@ public typealias WatchResolutionHandler = @Sendable (WatchResolutionRequest) -> 
 /// Callback to query current active session count for `/status`.
 public typealias WatchActiveSessionCountProvider = @Sendable () -> Int
 
+// MARK: - Connected device count
+
+extension WatchHTTPEndpoint {
+    /// Number of currently-connected SSE clients (iPhone/Watch).
+    /// Thread-safe — read from any queue.
+    public var connectedDeviceCount: Int {
+        queue.sync { sseConnections.count }
+    }
+}
+
 // MARK: - WatchHTTPEndpoint
 
 /// A lightweight HTTP server embedded in the macOS app that enables iPhone/Watch communication.
